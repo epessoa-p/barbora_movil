@@ -1,0 +1,45 @@
+<!-- APP ICON / FAVICON / MONOGRAM STANDALONE (1:1 SQUIRCLE) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14161D"/>
+      <stop offset="100%" stop-color="#07080B"/>
+    </linearGradient>
+
+    <linearGradient id="iconRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ED5442"/>
+      <stop offset="100%" stop-color="#B82E1E"/>
+    </linearGradient>
+
+    <linearGradient id="iconWhite" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#C5C9D3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App Icon Base Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle Outer Border/Stroke for Premium SaaS Feel -->
+  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#262933" stroke-width="4"/>
+
+  <!-- Centered BARBORA Geometric Symbol -->
+  <g transform="translate(142, 126) scale(1.6)">
+    <!-- Vertical Precision Stem -->
+    <path d="M 20 10 L 48 10 L 48 140 L 20 140 Z" fill="url(#iconWhite)" />
+    
+    <!-- Top Geometric Chamfer Loop -->
+    <path d="M 58 10 L 102 10 C 124 10 138 22 138 42 C 138 60 125 70 105 72 L 58 72 Z" fill="url(#iconRed)" />
+    
+    <!-- Bottom Geometric Chamfer Loop -->
+    <path d="M 58 82 L 108 82 C 130 82 146 95 146 115 C 146 132 130 140 106 140 L 58 140 Z" fill="url(#iconRed)" />
+    
+    <!-- Negative Space Cutouts -->
+    <polygon points="48,70 150,70 150,84 48,84" fill="#0A0B0E" />
+    <polygon points="12,110 55,67 63,75 20,118" fill="#0A0B0E" />
+    
+    <!-- Cloud / App Sync Node -->
+    <circle cx="128" cy="22" r="5" fill="#0A0B0E" />
+    <circle cx="128" cy="22" r="3" fill="#FFFFFF" />
+  </g>
+</svg>

@@ -1,0 +1,52 @@
+name: barbora_movil
+description: "App del personal de Barbora: agenda, atenciones y comisiones."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Textos del sistema (calendario, diálogos) en español.
+  flutter_localizations:
+    sdk: flutter
+
+  # Cliente HTTP. Se usa http y no dio a propósito: las cabeceras y el manejo
+  # de errores viven en un único sitio (core/api_client.dart), que es poco
+  # código y deja claro qué pasa en cada respuesta.
+  http: ^1.2.2
+
+  # El token es una credencial de un sistema de negocio: va al llavero del
+  # sistema operativo, no a SharedPreferences, que en un móvil con root se lee
+  # en texto plano.
+  flutter_secure_storage: ^9.2.2
+
+  provider: ^6.1.2
+
+  # Fechas en español: «lunes 6 de octubre», no «Monday, October 6».
+  intl: ^0.20.2
+
+  # El logo de la marca es SVG; Flutter no lo pinta de serie.
+  flutter_svg: ^2.0.10
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/img/
+
+  fonts:
+    # Montserrat variable: es la tipografía del logotipo. Se empaqueta porque
+    # ningún móvil la trae, y sin ella la palabra «Barbora» saldría con otra
+    # letra distinta a la del panel web.
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat.ttf

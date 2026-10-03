@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/cash_controller.dart';
 import '../state/checkout_controller.dart';
 import '../theme/barbora_theme.dart';
+import '../widgets/client_picker.dart';
 import '../widgets/error_view.dart';
 import 'receipt_screen.dart';
 
@@ -78,6 +79,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  /// ¿Se puede elegir cliente para la venta? Hace falta el módulo de clientes
+  /// y permiso para verlos. Al cobrar una cita el cliente ya viene puesto, pero
+  /// se deja cambiar igual.
+  bool get _canPickClient {
+    final me = context.read<AuthController>().me;
+    return (me?.hasModule('clientes') ?? false) && (me?.can('clients.view') ?? false);
+  }
+
+  Future<void> _pickClient(CheckoutController checkout) async {
+    final me = context.read<AuthController>().me;
+
+    final client = await ClientPickerSheet.show(
+      context,
+      api: context.read<ApiClient>(),
+      canCreate: me?.can('clients.create') ?? false,
+    );
+
+    if (client != null) checkout.setClient(client.id, client.fullName);
+  }
+
+  /// Diálogo para fijar descuento o propina. `max` acota el descuento al
+  /// subtotal; la propina no tiene tope. «Quitar» lo deja en cero.
+  Future<void> _editAmount({
+    required String title,
+    required double current,
+    required String symbol,
+    double? max,
+    required ValueChanged<double> onSet,
+  }) async {
+    final value = await showDialog<double>(
+      context: context,
+      builder: (_) => _AmountDialog(title: title, current: current, symbol: symbol, max: max),
+    );
+
+    if (value != null) onSet(value);
+  }
+
   void _addProduct(CheckoutController checkout, Product product) {
     final added = checkout.addProduct(product);
 
@@ -135,7 +173,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
         if (!checkout.isEmpty) ...[
-          _CartCard(checkout: checkout, symbol: symbol),
+          _CartCard(
+            checkout: checkout,
+            symbol: symbol,
+            onPickClient: _canPickClient ? () => _pickClient(checkout) : null,
+            onEditDiscount: () => _editAmount(
+              title: 'Descuento',
+              current: checkout.discount,
+              symbol: symbol,
+              max: checkout.subtotal,
+              onSet: checkout.setDiscount,
+            ),
+            onEditTip: () => _editAmount(
+              title: 'Propina',
+              current: checkout.tip,
+              symbol: symbol,
+              onSet: checkout.setTip,
+            ),
+          ),
           const SizedBox(height: 18),
         ],
 
@@ -238,10 +293,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 }
 
 class _CartCard extends StatelessWidget {
-  const _CartCard({required this.checkout, required this.symbol});
+  const _CartCard({
+    required this.checkout,
+    required this.symbol,
+    this.onPickClient,
+    required this.onEditDiscount,
+    required this.onEditTip,
+  });
 
   final CheckoutController checkout;
   final String symbol;
+
+  /// Null cuando el plan o el permiso no dejan elegir cliente.
+  final VoidCallback? onPickClient;
+  final VoidCallback onEditDiscount;
+  final VoidCallback onEditTip;
 
   @override
   Widget build(BuildContext context) {
@@ -262,16 +328,17 @@ class _CartCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (checkout.clientName != null)
+                // El cliente de la venta. Se puede dejar en blanco (venta
+                // suelta) o elegir uno, por ejemplo para su historial.
+                if (onPickClient != null)
+                  _ClientChip(name: checkout.clientName, onTap: onPickClient!)
+                else if (checkout.clientName != null)
                   Flexible(
                     child: Text(
                       checkout.clientName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: BarboraTheme.titanium,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: BarboraTheme.titanium),
                     ),
                   ),
               ],
@@ -332,16 +399,209 @@ class _CartCard extends StatelessWidget {
             child: Column(
               children: [
                 _Line(label: 'Subtotal', value: checkout.subtotal, symbol: symbol),
-                if (checkout.discount > 0)
-                  _Line(label: 'Descuento', value: -checkout.discount, symbol: symbol),
-                if (checkout.tip > 0)
-                  _Line(label: 'Propina', value: checkout.tip, symbol: symbol),
+                _AdjustRow(
+                  label: 'Descuento',
+                  value: checkout.discount,
+                  symbol: symbol,
+                  negative: true,
+                  onTap: onEditDiscount,
+                ),
+                _AdjustRow(
+                  label: 'Propina',
+                  value: checkout.tip,
+                  symbol: symbol,
+                  onTap: onEditTip,
+                ),
                 const SizedBox(height: 6),
                 _Line(label: 'Total', value: checkout.total, symbol: symbol, strong: true),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Diálogo numérico para descuento o propina. Dueño de su propio controlador:
+/// así no se desecha mientras el campo aún se cierra, que es lo que reventaba.
+class _AmountDialog extends StatefulWidget {
+  const _AmountDialog({
+    required this.title,
+    required this.current,
+    required this.symbol,
+    this.max,
+  });
+
+  final String title;
+  final double current;
+  final String symbol;
+  final double? max;
+
+  @override
+  State<_AmountDialog> createState() => _AmountDialogState();
+}
+
+class _AmountDialogState extends State<_AmountDialog> {
+  late final _controller = TextEditingController(
+    text: widget.current > 0 ? widget.current.toStringAsFixed(2) : '',
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double get _value => double.tryParse(_controller.text.replaceAll(',', '.')) ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          prefixText: '${widget.symbol} ',
+          hintText: '0.00',
+          helperText:
+              widget.max != null ? 'Máximo ${widget.symbol} ${widget.max!.toStringAsFixed(2)}' : null,
+        ),
+        onSubmitted: (_) => Navigator.of(context).pop(_value),
+      ),
+      actions: [
+        if (widget.current > 0)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(0.0),
+            style: TextButton.styleFrom(foregroundColor: BarboraTheme.copperDark),
+            child: const Text('Quitar'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_value),
+          child: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Botón-ficha del cliente en la cabecera de la comanda.
+class _ClientChip extends StatelessWidget {
+  const _ClientChip({required this.name, required this.onTap});
+
+  final String? name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = name != null && name!.isNotEmpty;
+
+    return Flexible(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: has ? BarboraTheme.copper.withValues(alpha: .10) : BarboraTheme.canvas,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: has ? BarboraTheme.copper.withValues(alpha: .30) : BarboraTheme.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                has ? Icons.person : Icons.person_add_alt,
+                size: 14,
+                color: has ? BarboraTheme.copperDark : BarboraTheme.textMuted,
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  has ? name! : 'Cliente',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: has ? BarboraTheme.copperDark : BarboraTheme.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fila de descuento o propina: tócala para fijarla. Sin valor muestra
+/// «Agregar»; con valor, el importe y un lápiz para cambiarlo.
+class _AdjustRow extends StatelessWidget {
+  const _AdjustRow({
+    required this.label,
+    required this.value,
+    required this.symbol,
+    required this.onTap,
+    this.negative = false,
+  });
+
+  final String label;
+  final double value;
+  final String symbol;
+  final VoidCallback onTap;
+  final bool negative;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = value > 0;
+    final shown = negative ? -value : value;
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: BarboraTheme.textMuted),
+            ),
+            const Spacer(),
+            if (has) ...[
+              Text(
+                '$symbol ${shown.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.edit_outlined, size: 14, color: BarboraTheme.textMuted),
+            ] else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.add, size: 15, color: BarboraTheme.copperDark),
+                  SizedBox(width: 3),
+                  Text(
+                    'Agregar',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: BarboraTheme.copperDark,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -614,8 +874,6 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   late final Map<String, TextEditingController> _controllers;
   late String _primary;
 
-  final _tip = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -645,7 +903,6 @@ class _PaymentSheetState extends State<_PaymentSheet> {
     for (final c in _controllers.values) {
       c.dispose();
     }
-    _tip.dispose();
     super.dispose();
   }
 

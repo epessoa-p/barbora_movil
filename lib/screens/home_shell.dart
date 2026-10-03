@@ -1,17 +1,88 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/appointment.dart';
+import '../models/me.dart';
+import '../state/agenda_controller.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/brand_logo.dart';
 import 'agenda_screen.dart';
 import 'cash_screen.dart';
+import 'checkout_screen.dart';
+import 'clients_screen.dart';
 import 'commissions_screen.dart';
+import 'new_appointment_screen.dart';
 import 'profile_screen.dart';
+import 'services_screen.dart';
 
-/// El armazón con la barra inferior. Las pestañas dependen de lo que el plan
-/// incluya y de si el usuario tiene ficha de barbero: sin ficha, «Comisiones»
-/// no tiene sentido y no se muestra.
+/// Las secciones de la app y las acciones rápidas, con lo que exige cada una.
+///
+/// Es el único sitio donde se decide qué ve quién: el menú lateral, el botón
+/// flotante y la sección de arranque leen de aquí. Cada entrada pide dos
+/// cosas, igual que el menú de la web: que el plan incluya el módulo y que el
+/// usuario tenga el permiso. El servidor lo vuelve a comprobar en cada
+/// llamada; esto solo evita enseñar puertas que no abren.
+class AppMenu {
+  const AppMenu(this.me);
+
+  final Me? me;
+
+  bool _allows(String module, String permission) =>
+      (me?.hasModule(module) ?? false) && (me?.can(permission) ?? false);
+
+  bool get agenda => _allows('agenda', 'appointments.view');
+
+  bool get newAppointment => _allows('agenda', 'appointments.create');
+
+  bool get clients => _allows('clientes', 'clients.view');
+
+  /// Los servicios se consultan dentro del módulo de agenda.
+  bool get services => _allows('agenda', 'services.view');
+
+  /// Un barbero que solo atiende no tiene por qué ver el cajón.
+  bool get cash => _allows('caja', 'cash.view');
+
+  bool get checkout => _allows('pos', 'sales.create');
+
+  /// «Lo mío»: sin ficha de personal no hay comisiones que enseñar.
+  bool get commissions => (me?.hasStaffProfile ?? false) && (me?.hasModule('comisiones') ?? false);
+
+  List<Section> get sections => [
+        if (agenda) Section.agenda,
+        if (clients) Section.clients,
+        if (services) Section.services,
+        if (cash) Section.cash,
+        if (commissions) Section.commissions,
+        Section.profile,
+      ];
+}
+
+enum Section {
+  agenda('Agenda', Icons.calendar_today_outlined, Icons.calendar_today),
+  clients('Clientes', Icons.people_outline, Icons.people),
+  services('Servicios', Icons.design_services_outlined, Icons.design_services),
+  cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
+  commissions('Comisiones', Icons.payments_outlined, Icons.payments),
+  profile('Mi perfil', Icons.person_outline, Icons.person);
+
+  const Section(this.label, this.icon, this.activeIcon);
+
+  final String label;
+  final IconData icon;
+  final IconData activeIcon;
+
+  Widget get screen => switch (this) {
+        Section.agenda => const AgendaScreen(),
+        Section.clients => const ClientsScreen(),
+        Section.services => const ServicesScreen(),
+        Section.cash => const CashScreen(),
+        Section.commissions => const CommissionsScreen(),
+        Section.profile => const ProfileScreen(),
+      };
+}
+
+/// El armazón: barra superior, menú lateral y la sección elegida.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -20,117 +91,411 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+  Section? _current;
+
+  /// Secciones ya abiertas: se conservan montadas para no recargar al volver,
+  /// pero no se monta ninguna hasta que se visita (cada una pide sus datos).
+  final Set<Section> _visited = {};
+
+  void _go(Section section) {
+    Navigator.of(context).pop(); // cierra el menú
+    setState(() => _current = section);
+  }
+
+  Future<void> _newAppointment({bool fromDrawer = false}) async {
+    if (fromDrawer) Navigator.of(context).pop();
+
+    final agenda = context.read<AgendaController>();
+
+    final created = await Navigator.of(context).push<Appointment>(
+      MaterialPageRoute(builder: (_) => NewAppointmentScreen(day: agenda.day)),
+    );
+
+    if (created == null || !mounted) return;
+
+    // Se lleva a la agenda al día de la cita, para verla en su sitio.
+    final menu = AppMenu(context.read<AuthController>().me);
+    if (menu.agenda) {
+      setState(() => _current = Section.agenda);
+      agenda.goToDay(created.startsAt);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Cita reservada: ${created.client?.fullName ?? 'cliente'} · ${created.timeRange}',
+        ),
+      ),
+    );
+  }
+
+  void _checkout() {
+    Navigator.of(context).pop();
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final me = auth.me;
+    final menu = AppMenu(auth.me);
+    final sections = menu.sections;
 
-    final tabs = <_Tab>[
-      const _Tab(
-        label: 'Agenda',
-        icon: Icons.calendar_today_outlined,
-        activeIcon: Icons.calendar_today,
-        screen: AgendaScreen(),
-      ),
-      // La caja depende del plan y del permiso: un barbero que solo atiende no
-      // tiene por qué ver el cajón.
-      if ((me?.hasModule('caja') ?? false) && (me?.can('cash.view') ?? false))
-        const _Tab(
-          label: 'Caja',
-          icon: Icons.point_of_sale_outlined,
-          activeIcon: Icons.point_of_sale,
-          screen: CashScreen(),
-        ),
-      if ((me?.hasStaffProfile ?? false) && (me?.hasModule('comisiones') ?? false))
-        const _Tab(
-          label: 'Comisiones',
-          icon: Icons.payments_outlined,
-          activeIcon: Icons.payments,
-          screen: CommissionsScreen(),
-        ),
-      const _Tab(
-        label: 'Perfil',
-        icon: Icons.person_outline,
-        activeIcon: Icons.person,
-        screen: ProfileScreen(),
-      ),
-    ];
-
-    // Si el plan cambia mientras la app está abierta, el índice podría quedar
-    // apuntando a una pestaña que ya no existe.
-    final index = _index.clamp(0, tabs.length - 1);
+    // Si el plan o el rol cambian con la app abierta, la sección actual puede
+    // dejar de existir: se vuelve a la primera disponible.
+    final current = sections.contains(_current) ? _current! : sections.first;
+    _visited.add(current);
 
     return Scaffold(
-      // La agenda trae su propia cabecera oscura con el día; las demás usan
-      // esta, para no repetir dos barras.
-      appBar: index == 0
-          ? null
-          : AppBar(
-              flexibleSpace: const DecoratedBox(
-                decoration: BoxDecoration(gradient: BarboraTheme.inkGradient),
-              ),
-              title: Text(tabs[index].label),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: Center(
-                    child: Text(
-                      auth.company?.name ?? '',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: BarboraTheme.titanium.withValues(alpha: .8),
-                      ),
-                    ),
-                  ),
+      appBar: AppBar(
+        // Color liso y no degradado: debajo de la agenda va su cabecera
+        // oscura, y dos degradados seguidos dejan una costura visible.
+        backgroundColor: BarboraTheme.inkSoft,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(current.label),
+            if (auth.company != null)
+              Text(
+                auth.company!.name,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: BarboraTheme.titanium.withValues(alpha: .8),
                 ),
-              ],
-            ),
-
-      body: SafeArea(
-        top: index != 0,
-        bottom: false,
-        child: IndexedStack(
-          index: index,
-          children: tabs.map((t) => t.screen).toList(),
+              ),
+          ],
         ),
       ),
 
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: BarboraTheme.border)),
-        ),
-        child: NavigationBar(
-          selectedIndex: index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: tabs
-              .map(
-                (t) => NavigationDestination(
-                  icon: Icon(t.icon),
-                  selectedIcon: Icon(t.activeIcon),
-                  label: t.label,
-                ),
-              )
-              .toList(),
+      drawer: _AppDrawer(
+        menu: menu,
+        current: current,
+        onSection: _go,
+        onNewAppointment: () => _newAppointment(fromDrawer: true),
+        onCheckout: _checkout,
+      ),
+
+      floatingActionButton: current == Section.agenda && menu.newAppointment
+          ? FloatingActionButton.extended(
+              onPressed: _newAppointment,
+              backgroundColor: BarboraTheme.copper,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva cita', style: TextStyle(fontWeight: FontWeight.w700)),
+            )
+          : null,
+
+      body: SafeArea(
+        top: false,
+        child: IndexedStack(
+          index: sections.indexOf(current),
+          children: [
+            for (final s in sections)
+              _visited.contains(s) ? s.screen : const SizedBox.shrink(),
+          ],
         ),
       ),
     );
   }
 }
 
-class _Tab {
-  const _Tab({
-    required this.label,
-    required this.icon,
-    required this.activeIcon,
-    required this.screen,
+/// El menú lateral. Solo enseña lo que el plan y los permisos dejan usar.
+class _AppDrawer extends StatelessWidget {
+  const _AppDrawer({
+    required this.menu,
+    required this.current,
+    required this.onSection,
+    required this.onNewAppointment,
+    required this.onCheckout,
   });
 
-  final String label;
+  final AppMenu menu;
+  final Section current;
+  final ValueChanged<Section> onSection;
+  final VoidCallback onNewAppointment;
+  final VoidCallback onCheckout;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    final me = auth.me;
+    final hasActions = menu.newAppointment || menu.checkout;
+
+    return Drawer(
+      backgroundColor: BarboraTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(22)),
+      ),
+      child: Column(
+        children: [
+          _DrawerHeader(
+            name: me?.personal?.fullName ?? me?.user.name ?? '',
+            subtitle: me?.personal?.cargo ?? me?.role?.name ?? '',
+            company: auth.company?.name ?? '',
+            initials: me?.personal?.initials ?? _initialsOf(me?.user.name ?? ''),
+          ),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              children: [
+                if (hasActions) ...[
+                  const _GroupLabel('Acciones rápidas'),
+                  if (menu.newAppointment)
+                    _DrawerItem(
+                      icon: Icons.event_available_outlined,
+                      label: 'Nueva cita',
+                      highlight: true,
+                      onTap: onNewAppointment,
+                    ),
+                  if (menu.checkout)
+                    _DrawerItem(
+                      icon: Icons.shopping_bag_outlined,
+                      label: 'Cobrar',
+                      highlight: true,
+                      onTap: onCheckout,
+                    ),
+                  const SizedBox(height: 10),
+                ],
+
+                const _GroupLabel('Secciones'),
+                for (final s in menu.sections)
+                  _DrawerItem(
+                    icon: s == current ? s.activeIcon : s.icon,
+                    label: s.label,
+                    selected: s == current,
+                    onTap: () => onSection(s),
+                  ),
+              ],
+            ),
+          ),
+
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+            child: Column(
+              children: [
+                if (auth.companies.length > 1)
+                  _DrawerItem(
+                    icon: Icons.swap_horiz,
+                    label: 'Cambiar de barbería',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.read<AuthController>().changeCompany();
+                    },
+                  ),
+                _DrawerItem(
+                  icon: Icons.logout,
+                  label: 'Cerrar sesión',
+                  onTap: () => _confirmLogout(context),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: MediaQuery.paddingOf(context).bottom),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final auth = context.read<AuthController>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('¿Cerrar sesión?'),
+        content: const Text('Tendrás que volver a escribir tu correo y contraseña.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) await auth.logout();
+  }
+
+  static String _initialsOf(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+}
+
+class _DrawerHeader extends StatelessWidget {
+  const _DrawerHeader({
+    required this.name,
+    required this.subtitle,
+    required this.company,
+    required this.initials,
+  });
+
+  final String name;
+  final String subtitle;
+  final String company;
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: BarboraTheme.inkGradient,
+        borderRadius: BorderRadius.only(topRight: Radius.circular(22)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 20, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BrandLogo.mark(height: 30),
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  gradient: BarboraTheme.copperGradient,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15.5,
+                      ),
+                    ),
+                    if (subtitle.isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: BarboraTheme.copperLight, fontSize: 12.5),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (company.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Icon(Icons.storefront_outlined,
+                    size: 15, color: BarboraTheme.titanium.withValues(alpha: .8)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    company,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: BarboraTheme.titanium.withValues(alpha: .9),
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupLabel extends StatelessWidget {
+  const _GroupLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            color: BarboraTheme.textMuted,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .8,
+          ),
+        ),
+      );
+}
+
+class _DrawerItem extends StatelessWidget {
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.highlight = false,
+  });
+
   final IconData icon;
-  final IconData activeIcon;
-  final Widget screen;
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+
+  /// Las acciones rápidas llevan el icono en cobre: son lo que se hace, no
+  /// adónde se va.
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected
+        ? BarboraTheme.copperDark
+        : highlight
+            ? BarboraTheme.copper
+            : BarboraTheme.ink;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: ListTile(
+        onTap: onTap,
+        dense: true,
+        selected: selected,
+        selectedTileColor: BarboraTheme.copper.withValues(alpha: .10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        leading: Icon(icon, color: color, size: 22),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14.5,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            color: selected ? BarboraTheme.copperDark : BarboraTheme.ink,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Pantalla de arranque, mientras se lee el token guardado.

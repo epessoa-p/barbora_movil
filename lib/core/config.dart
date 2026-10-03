@@ -1,38 +1,52 @@
-import 'package:flutter/foundation.dart';
-
 /// Configuración del entorno.
 ///
-/// A qué servidor habla la app se decide así, en este orden:
-///
-///   1. Lo que se pase al compilar con `--dart-define`, que siempre manda:
-///      ```bash
-///      flutter run --dart-define=BARBORA_API_URL=http://192.168.1.50:8070
-///      ```
-///   2. En un build **release** (el APK que se instala), producción.
-///   3. En desarrollo, el `localhost` de la máquina tal como lo ve el emulador
-///      de Android (10.0.2.2). En un teléfono físico eso no sirve: hay que
-///      pasar la IP del PC con `--dart-define`.
-///
-/// Aquí solo va la URL. **Ninguna credencial del servidor va dentro de la app**:
-/// un APK se puede desempaquetar, y todo lo que lleve dentro es público.
+/// Aquí solo va la URL del servidor. **Ninguna credencial del servidor va
+/// dentro de la app**: un APK se puede desempaquetar, y todo lo que lleve
+/// dentro es público.
 class Config {
   const Config._();
 
+  // ╔═══════════════════════════════════════════════════════════════════════╗
+  // ║  SERVIDOR AL QUE APUNTA LA APP                                         ║
+  // ║                                                                        ║
+  // ║  Deja UNA sola línea sin comentar. Para cambiar de servidor:           ║
+  // ║    1. Comenta la línea activa (pon // delante).                        ║
+  // ║    2. Descomenta la que quieras usar (quita el //).                    ║
+  // ║    3. Si la app ya estaba abierta, reiníciala del todo (hot restart,   ║
+  // ║       no hot reload), o recompila el APK si es para instalar.          ║
+  // ║                                                                        ║
+  // ║  Vale para `flutter run` y para `flutter build apk` por igual.         ║
+  // ╚═══════════════════════════════════════════════════════════════════════╝
+
+  // ── PRODUCCIÓN ─────────────────────────────────────────────────────────────
+  // El servidor real. Es lo que debe llevar todo APK que se instale en los
+  // teléfonos de las barberías.
+  static const String _selected = production;
+
+  // ── DESARROLLO ─────────────────────────────────────────────────────────────
+  // El servidor local (`php artisan serve --port=8070` en barbora_web).
+  // 10.0.2.2 es cómo el EMULADOR de Android ve el localhost del PC. En un
+  // teléfono físico no sirve: usa la IP del PC en la red, por ejemplo
+  // 'http://192.168.1.50:8070', y que el teléfono esté en el mismo wifi.
+  // static const String _selected = development;
+
+  // ── Direcciones ────────────────────────────────────────────────────────────
   static const String production = 'https://barbora.sczsoft.net';
   static const String development = 'http://10.0.2.2:8070';
 
+  /// Atajo sin tocar el código: si se compila con
+  /// `--dart-define=BARBORA_API_URL=http://...`, esa dirección manda sobre la
+  /// línea elegida arriba. Útil para una prueba puntual.
   static const String _override = String.fromEnvironment('BARBORA_API_URL');
 
-  static String get apiBaseUrl {
-    if (_override.isNotEmpty) return _stripSlash(_override);
-
-    return kReleaseMode ? production : development;
-  }
+  static String get apiBaseUrl =>
+      _override.isNotEmpty ? _stripSlash(_override) : _selected;
 
   static String get apiUrl => '$apiBaseUrl/api/v1';
 
   /// ¿Apunta a producción? La pantalla de acceso lo usa para no enseñar la URL
-  /// del servidor a los usuarios finales.
+  /// del servidor a los usuarios finales, y los mensajes de error para no
+  /// hablar de «la red local».
   static bool get isProduction => apiBaseUrl == production;
 
   /// Nombre con el que este dispositivo aparece en la lista de sesiones.

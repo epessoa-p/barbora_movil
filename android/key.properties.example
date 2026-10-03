@@ -1,0 +1,12 @@
+# Plantilla. Copia este archivo a android/key.properties y pon tus datos reales.
+# key.properties NO se sube al repo (está en .gitignore): tiene contraseñas.
+#
+# Ver GUIA-FIRMA-RELEASE.md para cómo crear el keystore y de dónde salen estos
+# valores.
+
+storePassword=LA_CONTRASEÑA_DEL_KEYSTORE
+keyPassword=LA_CONTRASEÑA_DE_LA_CLAVE
+keyAlias=barbora
+# El .jks quedó en android/app/, así que basta el nombre. Si lo guardaste en
+# otro lado, pon la ruta completa con / (ej: C:/Users/Eric/llaves/barbora-release.jks).
+storeFile=barbora-release.jks

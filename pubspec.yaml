@@ -37,6 +37,38 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+  # Generan el icono y el splash a partir de los PNG de tool/branding/, que a
+  # su vez salen del logo SVG (ver tool/render_app_assets.dart). Solo en
+  # desarrollo: no entran en la app.
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
+
+# ── Icono de la app ───────────────────────────────────────────────────────────
+# Regenerar tras cambiar el logo:
+#   flutter test tool/render_app_assets.dart   # SVG → PNG
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: tool/branding/app_icon.png
+  # En Android 8+ el icono es adaptativo: el sistema recorta el primer plano
+  # sobre el fondo. Por eso el monograma va aparte del color de fondo.
+  adaptive_icon_background: "#0B0C10"
+  adaptive_icon_foreground: tool/branding/app_icon_foreground.png
+  remove_alpha_ios: true
+
+# ── Pantalla de arranque ──────────────────────────────────────────────────────
+# Regenerar tras cambiar el logo:
+#   dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#0B0C10"
+  image: tool/branding/splash_logo.png
+  android_12:
+    color: "#0B0C10"
+    image: tool/branding/splash_logo.png
+  android: true
+  ios: true
+
 flutter:
   uses-material-design: true
 

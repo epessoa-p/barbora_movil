@@ -11,15 +11,37 @@ cabecera `X-Company-Id`. Lo que falta por construir está en [CHECKLIST.md](CHEC
 ```bash
 flutter pub get
 
-# Emulador de Android: 10.0.2.2 es el localhost de la máquina anfitriona.
-flutter run
+flutter run                 # probar en el emulador o el teléfono
+flutter build apk --release # APK para instalar
+```
 
-# APK para instalar: apunta a producción (https://barbora.sczsoft.net).
-flutter build apk --release
+### A qué servidor apunta
 
-# Teléfono físico: la IP del PC en la red local.
+Se elige a mano en `lib/core/config.dart`, en el recuadro **SERVIDOR AL QUE
+APUNTA LA APP**. Hay dos líneas y solo una debe quedar sin comentar:
+
+| Línea | Servidor | Cuándo |
+|---|---|---|
+| `_selected = production` | `https://barbora.sczsoft.net` | **Por defecto.** Todo APK que se instale |
+| `_selected = development` | `http://10.0.2.2:8070` | Probar contra tu PC con `php artisan serve --port=8070` |
+
+Para cambiar: comenta la activa, descomenta la otra y reinicia la app (hot
+restart, no hot reload) o recompila el APK.
+
+`10.0.2.2` es cómo el **emulador** ve el `localhost` del PC. En un teléfono
+físico cambia `development` por la IP del PC en la red (por ejemplo
+`http://192.168.1.50:8070`) y conecta ambos al mismo wifi.
+
+Para una prueba puntual sin tocar el código, `--dart-define` manda sobre la
+línea elegida:
+
+```bash
 flutter run --dart-define=BARBORA_API_URL=http://192.168.1.50:8070
 ```
+
+> Antes de compilar un APK para las barberías, comprueba que la línea activa
+> sea `production`: si sale con `development`, la app intentará conectar a tu
+> PC y no funcionará en ningún teléfono.
 
 Con el servidor web levantado (`php artisan serve --port=8070` en
 `barbora_web`) se puede entrar con cualquiera de las credenciales de

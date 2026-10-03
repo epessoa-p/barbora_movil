@@ -149,7 +149,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
 
     return [
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+        // Margen inferior amplio: el botón «Nueva cita» flota encima.
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
         sliver: SliverList.separated(
           itemCount: agenda.appointments.length,
           separatorBuilder: (_, _) => const SizedBox(height: 11),
@@ -202,8 +203,14 @@ class _DayHeader extends StatelessWidget {
     final rest = DateFormat("d 'de' MMMM", 'es').format(day);
 
     return Container(
+      // Degradado vertical que arranca en el color de la barra superior, para
+      // que cabecera y barra se lean como una sola pieza.
       decoration: const BoxDecoration(
-        gradient: BarboraTheme.inkGradient,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [BarboraTheme.inkSoft, Color(0xFF07080B)],
+        ),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
       ),
       child: Padding(

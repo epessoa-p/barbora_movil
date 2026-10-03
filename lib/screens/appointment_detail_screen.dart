@@ -13,6 +13,7 @@ import '../theme/barbora_theme.dart';
 import '../widgets/appointment_tile.dart';
 import '../widgets/error_view.dart';
 import 'checkout_screen.dart';
+import 'new_appointment_screen.dart';
 
 /// Detalle de una cita y los botones para cerrarla.
 ///
@@ -146,6 +147,39 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         && (_appointment?.services.isNotEmpty ?? false);
   }
 
+  /// ¿Se puede reprogramar esta cita desde aquí?
+  ///
+  /// Hace falta el permiso de editar y que la cita siga viva: una atendida o
+  /// cancelada ya es historia, moverla descuadraría comisiones y arqueo.
+  bool get _canReschedule {
+    final me = context.read<AuthController>().me;
+
+    return (me?.can('appointments.edit') ?? false)
+        && (_appointment?.isEditable ?? false);
+  }
+
+  /// Abre el formulario con los datos de la cita para moverla de día, hora,
+  /// barbero o servicios. Al volver con la cita cambiada, se refresca.
+  Future<void> _reschedule() async {
+    final agenda = context.read<AgendaController>();
+
+    final updated = await Navigator.of(context).push<Appointment>(
+      MaterialPageRoute(builder: (_) => NewAppointmentScreen(editing: _appointment)),
+    );
+
+    if (updated == null || !mounted) return;
+
+    // La agenda de atrás se lleva al día nuevo, por si la cita se movió de día.
+    agenda.goToDay(updated.startsAt);
+
+    await _load();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Cita reprogramada: ${updated.timeRange}.')),
+    );
+  }
+
   /// Arranca el cobro con la cita ya cargada: cliente, barbero y servicios con
   /// el precio que se pactó al reservar. Al confirmar, el servidor marca la
   /// cita como atendida; no hay que hacerlo a mano.
@@ -201,6 +235,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               onChange: _changeStatus,
               // Cobrar solo tiene sentido con el módulo de ventas y el permiso.
               onCharge: _canCharge ? _charge : null,
+              onReschedule: _canReschedule ? _reschedule : null,
             ),
     );
   }
@@ -355,12 +390,14 @@ class _Actions extends StatelessWidget {
     required this.status,
     required this.onChange,
     this.onCharge,
+    this.onReschedule,
   });
 
   final bool saving;
   final String status;
   final void Function(String) onChange;
   final VoidCallback? onCharge;
+  final VoidCallback? onReschedule;
 
   @override
   Widget build(BuildContext context) {
@@ -427,6 +464,14 @@ class _Actions extends StatelessWidget {
                 ),
               ],
             ),
+            if (onReschedule != null) ...[
+              const SizedBox(height: 9),
+              OutlinedButton.icon(
+                onPressed: onReschedule,
+                icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                label: const Text('Reprogramar'),
+              ),
+            ],
             if (status == 'reservada') ...[
               const SizedBox(height: 9),
               TextButton.icon(

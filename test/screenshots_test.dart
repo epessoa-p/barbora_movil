@@ -134,7 +134,7 @@ void main() {
           '/my/commissions': _commissions,
         },
         afterLoad: (t) async {
-          await t.tap(find.text('Comisiones'));
+          await openSection(t, 'Comisiones');
         });
   });
 
@@ -149,7 +149,7 @@ void main() {
           '/my/schedule': _schedule,
         },
         afterLoad: (t) async {
-          await t.tap(find.text('Perfil'));
+          await openSection(t, 'Mi perfil');
         });
   });
 
@@ -214,7 +214,204 @@ void main() {
           '/cash/session': _cashSession,
         },
         afterLoad: (t) async {
-          await t.tap(find.text('Caja'));
+          await openSection(t, 'Caja');
+        });
+  });
+
+  testWidgets('10 menu lateral', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '10_menu',
+        session: s,
+        routes: {'/me': _meCompleto, '/my/agenda': _agenda, '/agenda': _agenda},
+        afterLoad: (t) async {
+          await t.tap(find.byIcon(Icons.menu));
+        });
+  });
+
+  testWidgets('11 nueva cita', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '11_nueva_cita',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/staff': {
+            'data': [
+              {'id': 3, 'full_name': 'Tania Molina', 'agenda_color': '#E64A38'},
+              {'id': 5, 'full_name': 'Diego Rojas', 'agenda_color': '#3B82F6'},
+              {'id': 6, 'full_name': 'Marco Vaca', 'agenda_color': '#10B981'},
+            ],
+          },
+          '/booking/services': {
+            'data': [
+              {'id': 5, 'name': 'Corte clásico', 'duration_minutes': 30, 'price': 50.0},
+              {'id': 7, 'name': 'Barba', 'duration_minutes': 15, 'price': 20.0},
+              {'id': 8, 'name': 'Corte + lavado', 'duration_minutes': 45, 'price': 70.0},
+            ],
+          },
+          '/booking/slots': {
+            'data': ['09:00', '09:15', '10:30', '10:45', '11:00', '15:00', '15:15', '16:30'],
+          },
+          '/clients': {
+            'data': [
+              {
+                'id': 3,
+                'full_name': 'Carlos Mendoza',
+                'phone': '71234567',
+                'preferences': 'Degradado bajo, máquina 1',
+              },
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await t.tap(find.text('Nueva cita').last);
+          await t.pumpAndSettle();
+          await t.tap(find.text('Elegir cliente'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Carlos Mendoza'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Corte clásico'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Barba'));
+          await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('12 cobro con descuento', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '12_cobro',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/services': {
+            'data': [
+              {'id': 5, 'name': 'Corte clásico', 'duration_minutes': 30, 'price': 50.0},
+              {'id': 7, 'name': 'Barba', 'duration_minutes': 15, 'price': 20.0},
+              {'id': 8, 'name': 'Corte + lavado', 'duration_minutes': 45, 'price': 70.0},
+            ],
+          },
+          '/clients': {
+            'data': [
+              {'id': 3, 'full_name': 'Carlos Mendoza', 'phone': '71234567'},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Cobrar');
+          // Dos servicios en la comanda.
+          await t.tap(find.text('Corte clásico'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Barba'));
+          await t.pumpAndSettle();
+          // Descuento.
+          await t.tap(find.text('Agregar').first);
+          await t.pumpAndSettle();
+          await t.enterText(
+            find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)),
+            '10',
+          );
+          await t.tap(find.widgetWithText(FilledButton, 'Aplicar'));
+          await t.pumpAndSettle();
+          // Propina.
+          await t.tap(find.text('Agregar'));
+          await t.pumpAndSettle();
+          await t.enterText(
+            find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)),
+            '5',
+          );
+          await t.tap(find.widgetWithText(FilledButton, 'Aplicar'));
+          await t.pumpAndSettle();
+          // Cliente.
+          await t.tap(find.text('Cliente'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Carlos Mendoza'));
+          await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('13 servicios', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '13_servicios',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/services': {
+            'data': [
+              {'id': 5, 'name': 'Corte clásico', 'duration_minutes': 30, 'price': 50.0, 'category': 'Cortes', 'description': 'Tijera y máquina, lavado incluido.'},
+              {'id': 6, 'name': 'Corte + diseño', 'duration_minutes': 45, 'price': 85.0, 'category': 'Cortes'},
+              {'id': 7, 'name': 'Barba', 'duration_minutes': 15, 'price': 20.0, 'category': 'Barba'},
+              {'id': 8, 'name': 'Perfilado con navaja', 'duration_minutes': 20, 'price': 30.0, 'category': 'Barba'},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Servicios');
+        });
+  });
+
+  testWidgets('14 ficha de cliente', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '14_ficha_cliente',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/clients': {
+            'data': [
+              {'id': 3, 'full_name': 'Carlos Mendoza', 'phone': '71234567', 'document_number': '9876543'},
+            ],
+          },
+          '/clients/3': {
+            'data': {
+              'id': 3,
+              'full_name': 'Carlos Mendoza',
+              'phone': '71234567',
+              'email': 'carlos@correo.test',
+              'document_number': '9876543',
+              'preferences': 'Degradado bajo, máquina 1. Sin cera.',
+              'allergies': 'Alcohol en lociones',
+              'stats': {
+                'visits': 8,
+                'total_spent': 540.0,
+                'upcoming': 1,
+                'last_visit': '2026-09-20T11:00:00-04:00',
+              },
+              'recent_appointments': [
+                {
+                  'id': 31,
+                  'starts_at': '2026-09-20T11:00:00-04:00',
+                  'ends_at': '2026-09-20T11:40:00-04:00',
+                  'duration_minutes': 40,
+                  'status': 'atendida',
+                  'status_label': 'Atendida',
+                  'is_editable': false,
+                  'client': {'id': 3, 'full_name': 'Carlos Mendoza'},
+                  'personal': {'id': 3, 'full_name': 'Tania Molina'},
+                  'services': [
+                    {'id': 5, 'name': 'Corte clásico', 'duration_minutes': 30, 'price': 50.0},
+                    {'id': 7, 'name': 'Barba', 'duration_minutes': 10, 'price': 20.0},
+                  ],
+                  'total': 70.0,
+                },
+              ],
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Clientes');
+          await t.tap(find.text('Carlos Mendoza').first);
+          await t.pumpAndSettle();
         });
   });
 
@@ -688,5 +885,33 @@ final _meConComprobante = <String, Object>{
     'email': 'hola@barberiademo.test',
     'logo_url': null,
     'receipt_footer': 'Síguenos en @barberiademo',
+  },
+};
+
+/// Abre el menú lateral y entra en una sección.
+Future<void> openSection(WidgetTester t, String label) async {
+  await t.tap(find.byIcon(Icons.menu));
+  await t.pumpAndSettle();
+  await t.tap(find.descendant(of: find.byType(Drawer), matching: find.text(label)));
+  await t.pumpAndSettle();
+}
+
+/// Tania con permisos de recepción y caja: el menú con todo a la vista.
+final _meCompleto = {
+  ..._me,
+  'permissions': [
+    'appointments.view',
+    'appointments.create',
+    'appointments.edit',
+    'clients.view',
+    'clients.create',
+    'services.view',
+    'cash.view',
+    'sales.create',
+    'commissions.view',
+  ],
+  'plan': {
+    'name': 'Premium',
+    'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones'],
   },
 };

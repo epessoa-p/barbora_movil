@@ -53,6 +53,15 @@ su README, sección «API móvil».
 - [x] Tema visual con los colores del logo (negro grafito y rojo cobre)
 - [x] Localización en español (fechas y textos del sistema)
 
+## Navegación
+
+- [x] **Menú lateral (Navigation Drawer)** con cabecera de marca, usuario y
+      barbería. Cada entrada exige módulo del plan **y** permiso, igual que el
+      menú web: Agenda (`appointments.view`), Caja (`cash.view`), Comisiones
+      (ficha de personal), Nueva cita (`appointments.create`), Cobrar
+      (`sales.create`). Todo en `AppMenu`, en `lib/screens/home_shell.dart`.
+- [x] Cambiar de barbería y cerrar sesión desde el menú
+
 ## Acceso
 
 - [x] Pantalla de inicio de sesión
@@ -73,6 +82,10 @@ su README, sección «API móvil».
 - [x] Mostrar los bloqueos del día (vacaciones, feriados)
 - [x] «Mi agenda» frente a la agenda completa de la barbería
 - [x] Resumen del día: citas, pendientes, atendidas y tiempo ocupado
+- [x] **Crear citas**: cliente (buscar o alta rápida), barbero, servicios, día
+      y hora elegida de las libres que da el servidor. Botón flotante en la
+      agenda y entrada en el menú. Ver `lib/screens/new_appointment_screen.dart`.
+- [x] Reprogramar una cita (día, hora, barbero o servicios) desde su detalle
 - [ ] Filtrar por barbero dentro de la agenda de la barbería
 - [ ] Vista de semana
 
@@ -100,21 +113,29 @@ su README, sección «API móvil».
       antes de prometérselo al cliente.
 - [x] **Comprobante** al terminar el cobro, y copiable como texto para mandarlo
       por WhatsApp (que es lo que se hace de verdad; nadie lleva impresora).
-- [ ] Descuento y propina desde la pantalla (el controlador ya los soporta)
-- [ ] Elegir el cliente al cobrar una venta suelta
+- [x] Descuento y propina desde la pantalla de cobro
+- [x] Elegir el cliente al cobrar una venta suelta (buscar o alta rápida)
 
 ## Catálogo
 
 - [x] Lista de servicios y de productos (dentro de la pantalla de cobro)
-- [ ] Pantalla propia de servicios
-- [ ] Buscar clientes *(la API ya la expone: `GET /clients?q=`)*
-- [ ] Ficha del cliente
+- [x] **Pantalla propia de servicios**: el catálogo de solo lectura, agrupado
+      por categoría, con duración, precio y descripción. Sección del menú
+      (`agenda` + `services.view`). Ver `lib/screens/services_screen.dart`.
+- [x] Buscar clientes y alta rápida (compartido entre «Nueva cita» y «Cobrar»)
+- [x] **Ficha del cliente**: sección «Clientes» (buscar → ficha) con resumen
+      (visitas, gasto, última visita, citas por venir), preferencias, alergias
+      y últimas citas. `lib/screens/clients_screen.dart` y
+      `client_detail_screen.dart`.
 
 ## Pendiente de API
 
 Lo que la app necesitará y el backend todavía no expone:
 
-- [ ] Crear y reprogramar citas desde el móvil
+- [x] Crear citas: `GET /staff`, `GET /booking/services`, `GET /booking/slots`,
+      `POST /appointments`, `POST /clients`
+- [x] Reprogramar citas (`PUT /appointments/{id}`)
+- [x] Ficha del cliente con historial: `GET /clients/{id}`
 - [ ] Notificaciones push cuando entra una cita
 
 ## Calidad
@@ -129,7 +150,9 @@ Lo que la app necesitará y el backend todavía no expone:
 
 ## Publicación
 
-- [ ] Icono de la app e imagen de arranque con la marca
+- [x] Icono de la app e imagen de arranque con la marca. Se generan del logo
+      SVG: `flutter test tool/render_app_assets.dart` (SVG→PNG), luego
+      `dart run flutter_launcher_icons` y `dart run flutter_native_splash:create`.
 - [ ] Firma de Android (`keystore`) y perfil de iOS
 - [x] El APK release apunta a producción (`https://barbora.sczsoft.net`); en
       desarrollo, al servidor local. `--dart-define=BARBORA_API_URL=...` manda

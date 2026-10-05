@@ -61,6 +61,10 @@ su README, sección «API móvil».
       (ficha de personal), Nueva cita (`appointments.create`), Cobrar
       (`sales.create`). Todo en `AppMenu`, en `lib/screens/home_shell.dart`.
 - [x] Cambiar de barbería y cerrar sesión desde el menú
+- [x] **Cabecera del drawer con el logo de la barbería** como avatar (cae a las
+      iniciales si no hay logo); sin el logo de Barbora arriba.
+- [x] **Perfil por el AppBar**: botón redondo con icono de persona arriba a la
+      derecha abre «Mi perfil»; ya no está como sección del drawer.
 
 ## Acceso
 
@@ -115,18 +119,35 @@ su README, sección «API móvil».
       por WhatsApp (que es lo que se hace de verdad; nadie lleva impresora).
 - [x] Descuento y propina desde la pantalla de cobro
 - [x] Elegir el cliente al cobrar una venta suelta (buscar o alta rápida)
+- [x] **Barbero por servicio en el cobro**: cada línea de servicio se atribuye a
+      un barbero (para su comisión), con un chip «Asignar barbero».
 
 ## Catálogo
 
 - [x] Lista de servicios y de productos (dentro de la pantalla de cobro)
-- [x] **Pantalla propia de servicios**: el catálogo de solo lectura, agrupado
-      por categoría, con duración, precio y descripción. Sección del menú
-      (`agenda` + `services.view`). Ver `lib/screens/services_screen.dart`.
+- [x] **Pantalla propia de servicios**, agrupada por categoría, con duración,
+      precio y descripción. Sección del menú (`agenda` + `services.view`).
+- [x] **Editar servicios** (precio, duración, nombre, estado) con `services.edit`
+      → `PUT /services/{id}`. Ver `lib/screens/service_edit_screen.dart`.
 - [x] Buscar clientes y alta rápida (compartido entre «Nueva cita» y «Cobrar»)
 - [x] **Ficha del cliente**: sección «Clientes» (buscar → ficha) con resumen
       (visitas, gasto, última visita, citas por venir), preferencias, alergias
       y últimas citas. `lib/screens/clients_screen.dart` y
       `client_detail_screen.dart`.
+
+## Reportes
+
+- [x] **Sección «Reportes»** (`estadisticas` + `reports.view`): una tarjeta por
+      reporte (ventas, servicios, barberos, productos, clientes, ganancias) y
+      una pantalla genérica que pinta resumen + tablas con selector de periodo.
+      Reusa el cálculo de la web vía `GET /reports/{type}`.
+      `lib/screens/reports_screen.dart` y `report_detail_screen.dart`.
+
+## Caja
+
+- [x] **Detalle en los movimientos**: cada venta muestra qué incluyó
+      (servicios/productos) y quién la registró. El backend arma el detalle en
+      `GET /cash/movements`.
 
 ## Pendiente de API
 
@@ -136,6 +157,7 @@ Lo que la app necesitará y el backend todavía no expone:
       `POST /appointments`, `POST /clients`
 - [x] Reprogramar citas (`PUT /appointments/{id}`)
 - [x] Ficha del cliente con historial: `GET /clients/{id}`
+- [x] Editar servicios (`PUT /services/{id}`) y reportes (`GET /reports/{type}`)
 - [ ] Notificaciones push cuando entra una cita
 
 ## Calidad

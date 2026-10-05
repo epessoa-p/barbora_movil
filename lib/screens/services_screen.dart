@@ -7,8 +7,9 @@ import '../models/service.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
+import 'service_edit_screen.dart';
 
-/// El catálogo de servicios, de solo lectura.
+/// El catálogo de servicios.
 ///
 /// Para consultar precio y duración sin tener que entrar al cobro o a una cita.
 /// Se crean y editan desde el panel web; aquí solo se miran.
@@ -59,6 +60,26 @@ class _ServicesScreenState extends State<ServicesScreen> {
       groups.putIfAbsent(s.category ?? 'Otros', () => []).add(s);
     }
     return groups;
+  }
+
+  bool get _canEdit => context.read<AuthController>().me?.can('services.edit') ?? false;
+
+  Future<void> _edit(Service service) async {
+    final updated = await Navigator.of(context).push<Service>(
+      MaterialPageRoute(builder: (_) => ServiceEditScreen(service: service)),
+    );
+
+    if (updated == null || !mounted) return;
+
+    // Se reemplaza en sitio para no recargar toda la lista.
+    setState(() {
+      final i = _services.indexWhere((s) => s.id == updated.id);
+      if (i >= 0) _services[i] = updated;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${updated.name} actualizado.')),
+    );
   }
 
   @override
@@ -125,7 +146,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 children: [
                   for (final (i, s) in entry.value.indexed) ...[
                     if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
-                    _ServiceRow(service: s, symbol: symbol),
+                    _ServiceRow(
+                      service: s,
+                      symbol: symbol,
+                      onEdit: _canEdit ? () => _edit(s) : null,
+                    ),
                   ],
                 ],
               ),
@@ -139,14 +164,17 @@ class _ServicesScreenState extends State<ServicesScreen> {
 }
 
 class _ServiceRow extends StatelessWidget {
-  const _ServiceRow({required this.service, required this.symbol});
+  const _ServiceRow({required this.service, required this.symbol, this.onEdit});
 
   final Service service;
   final String symbol;
 
+  /// Null si el usuario no puede editar (la fila entonces no es tocable).
+  final VoidCallback? onEdit;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,9 +183,30 @@ class _ServiceRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  service.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        service.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                      ),
+                    ),
+                    if (!service.active) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: BarboraTheme.canvas,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: BarboraTheme.border),
+                        ),
+                        child: const Text('Inactivo',
+                            style: TextStyle(fontSize: 10, color: BarboraTheme.textMuted, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 3),
                 Row(
@@ -185,8 +234,16 @@ class _ServiceRow extends StatelessWidget {
             '$symbol ${service.price.toStringAsFixed(2)}',
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
           ),
+          if (onEdit != null) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right, color: BarboraTheme.titanium, size: 20),
+          ],
         ],
       ),
     );
+
+    if (onEdit == null) return row;
+
+    return InkWell(onTap: onEdit, child: row);
   }
 }

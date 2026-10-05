@@ -5,6 +5,7 @@ import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/cash.dart';
 import '../models/product.dart';
+import '../models/sale.dart';
 import '../models/service.dart';
 import '../state/auth_controller.dart';
 import '../state/cash_controller.dart';
@@ -40,6 +41,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void initState() {
     super.initState();
     _loadCatalog();
+    // Barberos para atribuir cada servicio (comisiones); no bloquea el cobro.
+    context.read<CheckoutController>().loadStaff();
   }
 
   Future<void> _loadCatalog() async {
@@ -97,6 +100,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     if (client != null) checkout.setClient(client.id, client.fullName);
+  }
+
+  /// Elige el barbero que atiende un servicio (para su comisión). «Sin asignar»
+  /// lo deja sin atribuir.
+  Future<void> _pickBarber(CheckoutController checkout, CartLine line) async {
+    if (checkout.staff.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No hay barberos para asignar.'),
+      ));
+      return;
+    }
+
+    final picked = await showModalBottomSheet<int?>(
+      context: context,
+      backgroundColor: BarboraTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Text('Barbero para ${line.name}',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.person_off_outlined, color: BarboraTheme.textMuted),
+              title: const Text('Sin asignar'),
+              trailing: line.personalId == null ? const Icon(Icons.check, color: BarboraTheme.copper) : null,
+              onTap: () => Navigator.of(context).pop(-1),
+            ),
+            for (final s in checkout.staff)
+              ListTile(
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: BarboraTheme.canvas,
+                  child: Text(s.initials,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: BarboraTheme.ink)),
+                ),
+                title: Text(s.fullName),
+                trailing: line.personalId == s.id ? const Icon(Icons.check, color: BarboraTheme.copper) : null,
+                onTap: () => Navigator.of(context).pop(s.id),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    // -1 = «Sin asignar»; null = cerró sin elegir.
+    if (picked != null) checkout.setLinePersonal(line, picked == -1 ? null : picked);
   }
 
   /// Diálogo para fijar descuento o propina. `max` acota el descuento al
@@ -177,6 +233,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             checkout: checkout,
             symbol: symbol,
             onPickClient: _canPickClient ? () => _pickClient(checkout) : null,
+            onPickBarber: (line) => _pickBarber(checkout, line),
             onEditDiscount: () => _editAmount(
               title: 'Descuento',
               current: checkout.discount,
@@ -297,6 +354,7 @@ class _CartCard extends StatelessWidget {
     required this.checkout,
     required this.symbol,
     this.onPickClient,
+    required this.onPickBarber,
     required this.onEditDiscount,
     required this.onEditTip,
   });
@@ -306,6 +364,9 @@ class _CartCard extends StatelessWidget {
 
   /// Null cuando el plan o el permiso no dejan elegir cliente.
   final VoidCallback? onPickClient;
+
+  /// Elegir el barbero de una línea de servicio (para comisiones).
+  final void Function(CartLine line) onPickBarber;
   final VoidCallback onEditDiscount;
   final VoidCallback onEditTip;
 
@@ -371,6 +432,14 @@ class _CartCard extends StatelessWidget {
                             color: BarboraTheme.textMuted,
                           ),
                         ),
+                        // Barbero que atiende el servicio (para su comisión).
+                        if (line.isService) ...[
+                          const SizedBox(height: 4),
+                          _BarberChip(
+                            name: checkout.staffById(line.personalId)?.fullName,
+                            onTap: () => onPickBarber(line),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -538,6 +607,51 @@ class _ClientChip extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip del barbero de una línea de servicio. Sin barbero muestra «Asignar
+/// barbero»; con uno, su nombre.
+class _BarberChip extends StatelessWidget {
+  const _BarberChip({required this.name, required this.onTap});
+
+  final String? name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = name != null && name!.isNotEmpty;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              has ? Icons.content_cut : Icons.person_add_alt,
+              size: 13,
+              color: has ? BarboraTheme.copperDark : BarboraTheme.textMuted,
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                has ? name! : 'Asignar barbero',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: has ? BarboraTheme.copperDark : BarboraTheme.textMuted,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -149,7 +149,8 @@ void main() {
           '/my/schedule': _schedule,
         },
         afterLoad: (t) async {
-          await openSection(t, 'Mi perfil');
+          await t.tap(find.byTooltip('Mi perfil'));
+          await t.pumpAndSettle();
         });
   });
 
@@ -411,6 +412,75 @@ void main() {
         afterLoad: (t) async {
           await openSection(t, 'Clientes');
           await t.tap(find.text('Carlos Mendoza').first);
+          await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('15 reportes', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '15_reportes',
+        session: s,
+        routes: {'/me': _meCompleto, '/my/agenda': _agenda, '/agenda': _agenda},
+        afterLoad: (t) async {
+          await openSection(t, 'Reportes');
+        });
+  });
+
+  testWidgets('16 reporte de ventas', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '16_reporte_ventas',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/reports/ventas': {
+            'key': 'ventas',
+            'title': 'Ventas',
+            'period': {
+              'preset': 'mes',
+              'label': 'Este mes',
+              'from': '2026-10-01',
+              'to': '2026-10-31',
+              'presets': [
+                {'key': 'hoy', 'label': 'Hoy'},
+                {'key': 'semana', 'label': 'Esta semana'},
+                {'key': 'mes', 'label': 'Este mes'},
+                {'key': 'mes_pasado', 'label': 'Mes pasado'},
+                {'key': 'anio', 'label': 'Este año'},
+              ],
+            },
+            'summary': [
+              {'label': 'Ventas', 'value': 48, 'kind': 'int'},
+              {'label': 'Total', 'value': 3240.0, 'kind': 'money'},
+              {'label': 'Ticket medio', 'value': 67.5, 'kind': 'money'},
+              {'label': 'Propinas', 'value': 180.0, 'kind': 'money'},
+              {'label': 'Descuentos', 'value': 90.0, 'kind': 'money'},
+              {'label': 'Anuladas', 'value': 2, 'kind': 'int'},
+            ],
+            'tables': [
+              {
+                'title': 'Por método de pago',
+                'columns': [
+                  {'label': 'Método', 'kind': 'text', 'align': 'start'},
+                  {'label': 'Cobros', 'kind': 'int', 'align': 'end'},
+                  {'label': 'Total', 'kind': 'money', 'align': 'end'},
+                ],
+                'rows': [
+                  ['Efectivo', 30, 1980.0],
+                  ['QR', 12, 900.0],
+                  ['Tarjeta', 6, 360.0],
+                ],
+              },
+            ],
+            'note': null,
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Reportes');
+          await t.tap(find.text('Ventas'));
           await t.pumpAndSettle();
         });
   });
@@ -906,12 +976,14 @@ final _meCompleto = {
     'clients.view',
     'clients.create',
     'services.view',
+    'services.edit',
     'cash.view',
     'sales.create',
     'commissions.view',
+    'reports.view',
   ],
   'plan': {
     'name': 'Premium',
-    'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones'],
+    'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones', 'estadisticas'],
   },
 };

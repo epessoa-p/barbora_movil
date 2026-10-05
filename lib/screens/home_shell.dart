@@ -7,6 +7,7 @@ import '../state/agenda_controller.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/error_view.dart';
 import 'agenda_screen.dart';
 import 'cash_screen.dart';
 import 'checkout_screen.dart';
@@ -14,6 +15,7 @@ import 'clients_screen.dart';
 import 'commissions_screen.dart';
 import 'new_appointment_screen.dart';
 import 'profile_screen.dart';
+import 'reports_screen.dart';
 import 'services_screen.dart';
 
 /// Las secciones de la app y las acciones rápidas, con lo que exige cada una.
@@ -48,13 +50,17 @@ class AppMenu {
   /// «Lo mío»: sin ficha de personal no hay comisiones que enseñar.
   bool get commissions => (me?.hasStaffProfile ?? false) && (me?.hasModule('comisiones') ?? false);
 
+  bool get reports => _allows('estadisticas', 'reports.view');
+
+  // El perfil ya no es una sección del menú: se abre con el botón de arriba a
+  // la derecha (ver HomeShell).
   List<Section> get sections => [
         if (agenda) Section.agenda,
         if (clients) Section.clients,
         if (services) Section.services,
         if (cash) Section.cash,
         if (commissions) Section.commissions,
-        Section.profile,
+        if (reports) Section.reports,
       ];
 }
 
@@ -64,7 +70,7 @@ enum Section {
   services('Servicios', Icons.design_services_outlined, Icons.design_services),
   cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
   commissions('Comisiones', Icons.payments_outlined, Icons.payments),
-  profile('Mi perfil', Icons.person_outline, Icons.person);
+  reports('Reportes', Icons.bar_chart_outlined, Icons.bar_chart);
 
   const Section(this.label, this.icon, this.activeIcon);
 
@@ -78,7 +84,7 @@ enum Section {
         Section.services => const ServicesScreen(),
         Section.cash => const CashScreen(),
         Section.commissions => const CommissionsScreen(),
-        Section.profile => const ProfileScreen(),
+        Section.reports => const ReportsScreen(),
       };
 }
 
@@ -134,6 +140,23 @@ class _HomeShellState extends State<HomeShell> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()));
   }
 
+  /// El perfil se abre como pantalla propia (ya no es sección del menú). Como
+  /// ProfileScreen no trae Scaffold, se envuelve en uno con su barra.
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            backgroundColor: BarboraTheme.inkSoft,
+            iconTheme: const IconThemeData(color: Colors.white),
+            title: const Text('Mi perfil'),
+          ),
+          body: const ProfileScreen(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
@@ -141,9 +164,11 @@ class _HomeShellState extends State<HomeShell> {
     final sections = menu.sections;
 
     // Si el plan o el rol cambian con la app abierta, la sección actual puede
-    // dejar de existir: se vuelve a la primera disponible.
-    final current = sections.contains(_current) ? _current! : sections.first;
-    _visited.add(current);
+    // dejar de existir: se vuelve a la primera disponible (o ninguna).
+    final current = sections.contains(_current)
+        ? _current!
+        : (sections.isEmpty ? null : sections.first);
+    if (current != null) _visited.add(current);
 
     return Scaffold(
       appBar: AppBar(
@@ -154,7 +179,7 @@ class _HomeShellState extends State<HomeShell> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(current.label),
+            Text(current?.label ?? 'Barbora'),
             if (auth.company != null)
               Text(
                 auth.company!.name,
@@ -166,6 +191,21 @@ class _HomeShellState extends State<HomeShell> {
               ),
           ],
         ),
+        actions: [
+          // Acceso al perfil: círculo con icono de persona, arriba a la derecha.
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: IconButton(
+              onPressed: _openProfile,
+              tooltip: 'Mi perfil',
+              icon: const CircleAvatar(
+                radius: 15,
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.person, size: 18, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
       ),
 
       drawer: _AppDrawer(
@@ -188,13 +228,19 @@ class _HomeShellState extends State<HomeShell> {
 
       body: SafeArea(
         top: false,
-        child: IndexedStack(
-          index: sections.indexOf(current),
-          children: [
-            for (final s in sections)
-              _visited.contains(s) ? s.screen : const SizedBox.shrink(),
-          ],
-        ),
+        child: current == null
+            ? const EmptyView(
+                icon: Icons.lock_outline,
+                title: 'Sin accesos',
+                subtitle: 'Tu cuenta no tiene módulos habilitados. Habla con tu administrador.',
+              )
+            : IndexedStack(
+                index: sections.indexOf(current),
+                children: [
+                  for (final s in sections)
+                    _visited.contains(s) ? s.screen : const SizedBox.shrink(),
+                ],
+              ),
       ),
     );
   }
@@ -211,7 +257,7 @@ class _AppDrawer extends StatelessWidget {
   });
 
   final AppMenu menu;
-  final Section current;
+  final Section? current;
   final ValueChanged<Section> onSection;
   final VoidCallback onNewAppointment;
   final VoidCallback onCheckout;
@@ -233,6 +279,7 @@ class _AppDrawer extends StatelessWidget {
             name: me?.personal?.fullName ?? me?.user.name ?? '',
             subtitle: me?.personal?.cargo ?? me?.role?.name ?? '',
             company: auth.company?.name ?? '',
+            logoUrl: auth.company?.logoUrl,
             initials: me?.personal?.initials ?? _initialsOf(me?.user.name ?? ''),
           ),
 
@@ -335,12 +382,16 @@ class _DrawerHeader extends StatelessWidget {
     required this.name,
     required this.subtitle,
     required this.company,
+    required this.logoUrl,
     required this.initials,
   });
 
   final String name;
   final String subtitle;
   final String company;
+
+  /// Logo de la barbería; si es null, se cae a las iniciales del personal.
+  final String? logoUrl;
   final String initials;
 
   @override
@@ -355,26 +406,35 @@ class _DrawerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const BrandLogo.mark(height: 30),
-          const SizedBox(height: 22),
           Row(
             children: [
+              // Avatar: el logo de la barbería si lo subió; si no, las iniciales.
               Container(
                 width: 46,
                 height: 46,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  gradient: BarboraTheme.copperGradient,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  gradient: logoUrl == null ? BarboraTheme.copperGradient : null,
+                  color: logoUrl == null ? null : Colors.white,
                   shape: BoxShape.circle,
                 ),
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
+                child: logoUrl != null
+                    ? Image.network(
+                        logoUrl!,
+                        fit: BoxFit.cover,
+                        width: 46,
+                        height: 46,
+                        errorBuilder: (_, _, _) => _InitialsAvatar(initials: initials),
+                      )
+                    : Text(
+                        initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -425,6 +485,30 @@ class _DrawerHeader extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Respaldo del avatar cuando el logo no carga: las iniciales sobre cobre.
+class _InitialsAvatar extends StatelessWidget {
+  const _InitialsAvatar({required this.initials});
+
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 46,
+      height: 46,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        gradient: BarboraTheme.copperGradient,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials,
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
       ),
     );
   }

@@ -532,10 +532,23 @@ class _MovementTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                   ),
+                  // Qué incluyó la venta (servicios/productos).
+                  if (movement.detail != null && movement.detail!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      movement.detail!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: BarboraTheme.ink, height: 1.25),
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     '${DateFormat('HH:mm').format(movement.createdAt)}'
-                    '  ·  ${movement.paymentMethodLabel}',
+                    '  ·  ${movement.paymentMethodLabel}'
+                    '${movement.createdBy != null ? '  ·  ${movement.createdBy}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11.5, color: BarboraTheme.textMuted),
                   ),
                 ],

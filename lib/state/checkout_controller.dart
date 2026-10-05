@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
+import '../models/client.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
 import '../models/service.dart';
@@ -19,6 +20,33 @@ class CheckoutController extends ChangeNotifier {
   CheckoutController({required this.api});
 
   final ApiClient api;
+
+  /// Barberos a los que atribuir un servicio en la comanda (para comisiones).
+  List<StaffMember> staff = const [];
+
+  /// Carga los barberos una sola vez; si falla, la comanda igual se puede cobrar
+  /// (la atribución por línea es opcional).
+  Future<void> loadStaff() async {
+    if (staff.isNotEmpty) return;
+    try {
+      final body = await api.get('/staff');
+      staff = (body['data'] as List? ?? [])
+          .map((e) => StaffMember.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+    } on ApiException {
+      // Silencioso: sin barberos cargados, la línea simplemente no se atribuye.
+    }
+  }
+
+  StaffMember? staffById(int? id) =>
+      id == null ? null : staff.where((s) => s.id == id).firstOrNull;
+
+  /// Atribuye (o quita) el barbero de una línea de servicio.
+  void setLinePersonal(CartLine line, int? personalId) {
+    line.personalId = personalId;
+    notifyListeners();
+  }
 
   final List<CartLine> _lines = [];
   List<CartLine> get lines => List.unmodifiable(_lines);

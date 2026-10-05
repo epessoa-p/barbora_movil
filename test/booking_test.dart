@@ -38,6 +38,20 @@ void main() {
         'GET /staff' => _staff,
         'GET /booking/services' => _services,
         'GET /services' => _services,
+        'GET /reports/ventas' => _reporteVentas,
+        'PUT /services/5' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'ok',
+              'data': {
+                'id': 5,
+                'name': booked!['name'],
+                'duration_minutes': booked!['duration_minutes'],
+                'price': (booked!['price'] as num).toDouble(),
+                'active': booked!['active'] == 1 || booked!['active'] == true,
+              },
+            };
+          }(),
         'GET /clients/3' => {'data': _clientDetail},
         'GET /booking/slots' => {'data': ['09:00', '09:30', '10:00']},
         'GET /clients' => _clients,
@@ -87,11 +101,22 @@ void main() {
 
     expect(inDrawer('Agenda'), findsOneWidget);
     expect(inDrawer('Comisiones'), findsOneWidget);
-    expect(inDrawer('Mi perfil'), findsOneWidget);
+    // El perfil ya no está en el drawer: se abre por el botón del AppBar.
+    expect(inDrawer('Mi perfil'), findsNothing);
     expect(inDrawer('Caja'), findsNothing);
     expect(inDrawer('Cobrar'), findsNothing);
     expect(inDrawer('Nueva cita'), findsNothing);
     expect(inDrawer('Cerrar sesión'), findsOneWidget);
+  });
+
+  testWidgets('el perfil se abre con el botón del AppBar', (tester) async {
+    await pumpApp(tester, _meBarbero);
+
+    await tester.tap(find.byTooltip('Mi perfil'));
+    await tester.pumpAndSettle();
+
+    // La pantalla de perfil quedó abierta con su propia barra.
+    expect(find.widgetWithText(AppBar, 'Mi perfil'), findsOneWidget);
   });
 
   testWidgets('recepción ve las acciones y la caja, pero no comisiones', (tester) async {
@@ -243,6 +268,75 @@ void main() {
     expect(find.text('Barba'), findsOneWidget);
   });
 
+  testWidgets('se edita el precio de un servicio', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+
+    await openDrawer(tester);
+    await tester.tap(inDrawer('Servicios'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Corte clásico'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Editar servicio'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Precio'), '65');
+    await tester.tap(find.widgetWithText(FilledButton, 'Guardar cambios'));
+    await tester.pumpAndSettle();
+
+    // Se guardó con PUT y el precio nuevo.
+    expect(seen.any((r) => r == 'PUT /services/5'), isTrue);
+    expect(booked!['price'], 65);
+    // De vuelta en la lista.
+    expect(find.text('Editar servicio'), findsNothing);
+  });
+
+  testWidgets('la sección Reportes abre un reporte', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+
+    await openDrawer(tester);
+    await tester.tap(inDrawer('Reportes'));
+    await tester.pumpAndSettle();
+
+    // La portada con las tarjetas.
+    expect(find.text('Ventas'), findsOneWidget);
+    expect(find.text('Barberos'), findsOneWidget);
+
+    await tester.tap(find.text('Ventas'));
+    await tester.pumpAndSettle();
+
+    // El reporte, con su resumen y su tabla.
+    expect(seen.any((r) => r.startsWith('GET /reports/ventas')), isTrue);
+    expect(find.text('Este mes'), findsWidgets);
+    expect(find.text('Bs 840.00'), findsOneWidget);
+    expect(find.text('POR MÉTODO DE PAGO'), findsOneWidget);
+  });
+
+  testWidgets('en el cobro se asigna un barbero a un servicio', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+
+    await openDrawer(tester);
+    await tester.tap(inDrawer('Cobrar'));
+    await tester.pumpAndSettle();
+
+    // Añadir un servicio a la comanda.
+    await tester.tap(find.text('Corte clásico'));
+    await tester.pumpAndSettle();
+
+    // La línea de servicio ofrece asignar barbero.
+    expect(find.text('Asignar barbero'), findsOneWidget);
+    await tester.tap(find.text('Asignar barbero'));
+    await tester.pumpAndSettle();
+
+    // La hoja lista los barberos (de /staff) y se elige uno.
+    await tester.tap(find.text('Tania Molina').last);
+    await tester.pumpAndSettle();
+
+    // El nombre del barbero queda en la línea.
+    expect(find.text('Tania Molina'), findsOneWidget);
+    expect(find.text('Asignar barbero'), findsNothing);
+  });
+
   testWidgets('se reprograma una cita desde su detalle', (tester) async {
     await pumpApp(tester, _meRecepcion, agenda: _agendaConCita);
 
@@ -315,10 +409,12 @@ const _meRecepcion = <String, Object>{
     'clients.view',
     'clients.create',
     'services.view',
+    'services.edit',
     'cash.view',
     'sales.create',
+    'reports.view',
   ],
-  'plan': {'name': 'Premium', 'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones']},
+  'plan': {'name': 'Premium', 'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones', 'estadisticas']},
 };
 
 const _emptyAgenda = {
@@ -339,6 +435,39 @@ const _services = {
     {'id': 5, 'name': 'Corte clásico', 'duration_minutes': 30, 'price': 50.0},
     {'id': 7, 'name': 'Barba', 'duration_minutes': 20, 'price': 20.0},
   ],
+};
+
+const _reporteVentas = {
+  'key': 'ventas',
+  'title': 'Ventas',
+  'period': {
+    'preset': 'mes',
+    'label': 'Este mes',
+    'from': '2026-10-01',
+    'to': '2026-10-31',
+    'presets': [
+      {'key': 'hoy', 'label': 'Hoy'},
+      {'key': 'mes', 'label': 'Este mes'},
+    ],
+  },
+  'summary': [
+    {'label': 'Ventas', 'value': 12, 'kind': 'int'},
+    {'label': 'Total', 'value': 840.0, 'kind': 'money'},
+  ],
+  'tables': [
+    {
+      'title': 'Por método de pago',
+      'columns': [
+        {'label': 'Método', 'kind': 'text', 'align': 'start'},
+        {'label': 'Total', 'kind': 'money', 'align': 'end'},
+      ],
+      'rows': [
+        ['Efectivo', 600.0],
+        ['QR', 240.0],
+      ],
+    },
+  ],
+  'note': null,
 };
 
 const _clients = {

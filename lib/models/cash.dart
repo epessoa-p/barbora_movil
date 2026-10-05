@@ -116,6 +116,7 @@ class CashMovement {
     required this.concept,
     required this.amount,
     required this.createdAt,
+    this.detail,
     this.reference,
     this.createdBy,
   });
@@ -127,6 +128,9 @@ class CashMovement {
   final String paymentMethod;
   final String paymentMethodLabel;
   final String concept;
+
+  /// Si es una venta, lo que incluyó: «Corte clásico + Barba».
+  final String? detail;
   final double amount;
   final DateTime createdAt;
   final String? reference;
@@ -143,6 +147,7 @@ class CashMovement {
         paymentMethod: json['payment_method'] as String? ?? '',
         paymentMethodLabel: json['payment_method_label'] as String? ?? '',
         concept: json['concept'] as String? ?? '',
+        detail: json['detail'] as String?,
         amount: (json['amount'] as num?)?.toDouble() ?? 0,
         createdAt: ShopTime.parse(json['created_at'] as String),
         reference: json['reference'] as String?,

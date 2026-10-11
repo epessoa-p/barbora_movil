@@ -32,6 +32,9 @@ dependencies:
   # El logo de la marca es SVG; Flutter no lo pinta de serie.
   flutter_svg: ^2.0.10
 
+  # Gráficos de los reportes (líneas y barras).
+  fl_chart: ^0.69.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

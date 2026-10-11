@@ -460,6 +460,22 @@ void main() {
               {'label': 'Descuentos', 'value': 90.0, 'kind': 'money'},
               {'label': 'Anuladas', 'value': 2, 'kind': 'int'},
             ],
+            'charts': [
+              {
+                'type': 'line',
+                'title': 'Ventas por día',
+                'labels': ['01/10', '05/10', '10/10', '15/10', '20/10', '25/10', '30/10'],
+                'data': [120.0, 380.0, 210.0, 520.0, 300.0, 640.0, 410.0],
+                'kind': 'money',
+              },
+              {
+                'type': 'bar',
+                'title': 'Por método de pago',
+                'labels': ['Efectivo', 'QR', 'Tarjeta'],
+                'data': [1980.0, 900.0, 360.0],
+                'kind': 'money',
+              },
+            ],
             'tables': [
               {
                 'title': 'Por método de pago',
@@ -482,6 +498,29 @@ void main() {
           await openSection(t, 'Reportes');
           await t.tap(find.text('Ventas'));
           await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('17 barberos', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '17_barberos',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/personal': {
+            'data': [
+              {'id': 3, 'full_name': 'Tania Molina', 'cargo': 'Barbero', 'bookable': true, 'active': true, 'specialty': 'Degradados', 'agenda_color': '#E64A38'},
+              {'id': 5, 'full_name': 'Diego Rojas', 'cargo': 'Barbero', 'bookable': true, 'active': true, 'agenda_color': '#3B82F6'},
+              {'id': 6, 'full_name': 'Lucía Recepción', 'cargo': 'Recepcionista', 'bookable': false, 'active': true, 'agenda_color': '#10B981'},
+              {'id': 7, 'full_name': 'Marco Antiguo', 'cargo': 'Barbero', 'bookable': false, 'active': false},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Barberos');
         });
   });
 
@@ -962,7 +1001,15 @@ final _meConComprobante = <String, Object>{
 Future<void> openSection(WidgetTester t, String label) async {
   await t.tap(find.byIcon(Icons.menu));
   await t.pumpAndSettle();
-  await t.tap(find.descendant(of: find.byType(Drawer), matching: find.text(label)));
+  final item = find.descendant(of: find.byType(Drawer), matching: find.text(label));
+  // El drawer es una lista perezosa: si la sección quedó fuera de vista, se
+  // hace scroll hasta ella antes de tocarla.
+  await t.scrollUntilVisible(
+    item,
+    120,
+    scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first,
+  );
+  await t.tap(item);
   await t.pumpAndSettle();
 }
 
@@ -977,6 +1024,9 @@ final _meCompleto = {
     'clients.create',
     'services.view',
     'services.edit',
+    'personal.view',
+    'personal.create',
+    'personal.edit',
     'cash.view',
     'sales.create',
     'commissions.view',

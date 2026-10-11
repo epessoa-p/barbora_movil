@@ -39,6 +39,22 @@ void main() {
         'GET /booking/services' => _services,
         'GET /services' => _services,
         'GET /reports/ventas' => _reporteVentas,
+        'GET /personal' => _personal,
+        'GET /cargos' => _cargos,
+        'POST /personal' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'ok',
+              'data': {
+                'id': 99,
+                'full_name': booked!['full_name'],
+                'cargo_id': booked!['cargo_id'],
+                'cargo': 'Barbero',
+                'bookable': booked!['bookable'] == 1 || booked!['bookable'] == true,
+                'active': booked!['active'] == 1 || booked!['active'] == true,
+              },
+            };
+          }(),
         'PUT /services/5' => () {
             booked = jsonDecode(request.body) as Map<String, dynamic>;
             return {
@@ -91,6 +107,19 @@ void main() {
 
   Finder inDrawer(String text) =>
       find.descendant(of: find.byType(Drawer), matching: find.text(text));
+
+  /// Abre el menú y toca una sección, haciendo scroll si quedó fuera de vista
+  /// (la lista del drawer es perezosa y no construye lo que no se ve).
+  Future<void> tapDrawer(WidgetTester tester, String label) async {
+    await openDrawer(tester);
+    await tester.scrollUntilVisible(
+      inDrawer(label),
+      120,
+      scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first,
+    );
+    await tester.tap(inDrawer(label));
+    await tester.pumpAndSettle();
+  }
 
   testWidgets('un barbero sin más permisos solo ve lo suyo en el menú', (tester) async {
     await pumpApp(tester, _meBarbero);
@@ -294,9 +323,7 @@ void main() {
   testWidgets('la sección Reportes abre un reporte', (tester) async {
     await pumpApp(tester, _meRecepcion);
 
-    await openDrawer(tester);
-    await tester.tap(inDrawer('Reportes'));
-    await tester.pumpAndSettle();
+    await tapDrawer(tester, 'Reportes');
 
     // La portada con las tarjetas.
     expect(find.text('Ventas'), findsOneWidget);
@@ -305,11 +332,42 @@ void main() {
     await tester.tap(find.text('Ventas'));
     await tester.pumpAndSettle();
 
-    // El reporte, con su resumen y su tabla.
+    // El reporte, con su resumen, su gráfico y su tabla.
     expect(seen.any((r) => r.startsWith('GET /reports/ventas')), isTrue);
     expect(find.text('Este mes'), findsWidgets);
     expect(find.text('Bs 840.00'), findsOneWidget);
+    expect(find.text('VENTAS POR DÍA'), findsOneWidget);
     expect(find.text('POR MÉTODO DE PAGO'), findsOneWidget);
+  });
+
+  testWidgets('la sección Barberos lista y abre el alta', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+
+    await tapDrawer(tester, 'Barberos');
+
+    // Lista (activos e inactivos).
+    expect(find.text('Tania Molina'), findsOneWidget);
+    expect(find.text('Diego Inactivo'), findsOneWidget);
+
+    // Alta de un barbero.
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Nuevo barbero'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nuevo barbero'), findsWidgets);
+    await tester.enterText(find.widgetWithText(TextField, 'Nombre completo'), 'Marco Vaca');
+    // Elegir cargo del desplegable.
+    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Barbero').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Crear barbero'));
+    await tester.pumpAndSettle();
+
+    expect(seen.any((r) => r == 'POST /personal'), isTrue);
+    expect(booked!['full_name'], 'Marco Vaca');
+    expect(booked!['cargo_id'], 1);
+    expect(find.text('Marco Vaca'), findsOneWidget);
   });
 
   testWidgets('en el cobro se asigna un barbero a un servicio', (tester) async {
@@ -410,6 +468,9 @@ const _meRecepcion = <String, Object>{
     'clients.create',
     'services.view',
     'services.edit',
+    'personal.view',
+    'personal.create',
+    'personal.edit',
     'cash.view',
     'sales.create',
     'reports.view',
@@ -454,6 +515,15 @@ const _reporteVentas = {
     {'label': 'Ventas', 'value': 12, 'kind': 'int'},
     {'label': 'Total', 'value': 840.0, 'kind': 'money'},
   ],
+  'charts': [
+    {
+      'type': 'line',
+      'title': 'Ventas por día',
+      'labels': ['01/10', '02/10', '03/10'],
+      'data': [120.0, 300.0, 420.0],
+      'kind': 'money',
+    },
+  ],
   'tables': [
     {
       'title': 'Por método de pago',
@@ -468,6 +538,20 @@ const _reporteVentas = {
     },
   ],
   'note': null,
+};
+
+const _cargos = {
+  'data': [
+    {'id': 1, 'name': 'Barbero'},
+    {'id': 2, 'name': 'Recepcionista'},
+  ],
+};
+
+const _personal = {
+  'data': [
+    {'id': 3, 'full_name': 'Tania Molina', 'cargo_id': 1, 'cargo': 'Barbero', 'bookable': true, 'active': true, 'specialty': 'Degradados'},
+    {'id': 5, 'full_name': 'Diego Inactivo', 'cargo_id': 1, 'cargo': 'Barbero', 'bookable': false, 'active': false},
+  ],
 };
 
 const _clients = {

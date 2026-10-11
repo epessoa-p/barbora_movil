@@ -7,6 +7,7 @@ import '../models/report.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
+import '../widgets/report_chart.dart';
 
 /// Un reporte cualquiera, pintado con el mismo molde: resumen de tarjetas +
 /// tablas, con un selector de periodo arriba. Los datos vienen ya formados de
@@ -113,6 +114,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           ],
 
           if (report.summary.isNotEmpty) _SummaryGrid(stats: report.summary, symbol: symbol),
+
+          for (final chart in report.charts)
+            if (chart.hasData) ...[
+              const SizedBox(height: 18),
+              ReportChartCard(chart: chart, symbol: symbol),
+            ],
 
           for (final table in report.tables)
             if (table.rows.isNotEmpty) ...[

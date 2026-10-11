@@ -9,6 +9,7 @@ import '../theme/barbora_theme.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/error_view.dart';
 import 'agenda_screen.dart';
+import 'barbers_screen.dart';
 import 'cash_screen.dart';
 import 'checkout_screen.dart';
 import 'clients_screen.dart';
@@ -42,6 +43,9 @@ class AppMenu {
   /// Los servicios se consultan dentro del módulo de agenda.
   bool get services => _allows('agenda', 'services.view');
 
+  /// Gestionar barberos (personal): administrativo, solo por permiso.
+  bool get barbers => me?.can('personal.view') ?? false;
+
   /// Un barbero que solo atiende no tiene por qué ver el cajón.
   bool get cash => _allows('caja', 'cash.view');
 
@@ -58,6 +62,7 @@ class AppMenu {
         if (agenda) Section.agenda,
         if (clients) Section.clients,
         if (services) Section.services,
+        if (barbers) Section.barbers,
         if (cash) Section.cash,
         if (commissions) Section.commissions,
         if (reports) Section.reports,
@@ -68,6 +73,7 @@ enum Section {
   agenda('Agenda', Icons.calendar_today_outlined, Icons.calendar_today),
   clients('Clientes', Icons.people_outline, Icons.people),
   services('Servicios', Icons.design_services_outlined, Icons.design_services),
+  barbers('Barberos', Icons.content_cut_outlined, Icons.content_cut),
   cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
   commissions('Comisiones', Icons.payments_outlined, Icons.payments),
   reports('Reportes', Icons.bar_chart_outlined, Icons.bar_chart);
@@ -82,6 +88,7 @@ enum Section {
         Section.agenda => const AgendaScreen(),
         Section.clients => const ClientsScreen(),
         Section.services => const ServicesScreen(),
+        Section.barbers => const BarbersScreen(),
         Section.cash => const CashScreen(),
         Section.commissions => const CommissionsScreen(),
         Section.reports => const ReportsScreen(),

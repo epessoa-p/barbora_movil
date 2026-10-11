@@ -9,6 +9,7 @@ class ReportView {
     required this.title,
     required this.period,
     this.summary = const [],
+    this.charts = const [],
     this.tables = const [],
     this.note,
   });
@@ -17,6 +18,7 @@ class ReportView {
   final String title;
   final ReportPeriodInfo period;
   final List<ReportStat> summary;
+  final List<ReportChart> charts;
   final List<ReportTable> tables;
   final String? note;
 
@@ -27,10 +29,41 @@ class ReportView {
         summary: (json['summary'] as List? ?? [])
             .map((e) => ReportStat.fromJson(e as Map<String, dynamic>))
             .toList(),
+        charts: (json['charts'] as List? ?? [])
+            .map((e) => ReportChart.fromJson(e as Map<String, dynamic>))
+            .toList(),
         tables: (json['tables'] as List? ?? [])
             .map((e) => ReportTable.fromJson(e as Map<String, dynamic>))
             .toList(),
         note: json['note'] as String?,
+      );
+}
+
+/// Un gráfico de una serie: `type` 'line' o 'bar', con sus etiquetas y valores.
+class ReportChart {
+  const ReportChart({
+    required this.type,
+    required this.title,
+    this.labels = const [],
+    this.data = const [],
+    this.kind = 'money',
+  });
+
+  final String type;
+  final String title;
+  final List<String> labels;
+  final List<double> data;
+  final String kind;
+
+  bool get isLine => type == 'line';
+  bool get hasData => data.any((v) => v != 0);
+
+  factory ReportChart.fromJson(Map<String, dynamic> json) => ReportChart(
+        type: json['type'] as String? ?? 'bar',
+        title: json['title'] as String? ?? '',
+        labels: (json['labels'] as List? ?? []).map((e) => '$e').toList(),
+        data: (json['data'] as List? ?? []).map((e) => (e as num).toDouble()).toList(),
+        kind: json['kind'] as String? ?? 'money',
       );
 }
 

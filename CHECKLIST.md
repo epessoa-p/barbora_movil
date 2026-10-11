@@ -139,9 +139,20 @@ su README, sección «API móvil».
 
 - [x] **Sección «Reportes»** (`estadisticas` + `reports.view`): una tarjeta por
       reporte (ventas, servicios, barberos, productos, clientes, ganancias) y
-      una pantalla genérica que pinta resumen + tablas con selector de periodo.
-      Reusa el cálculo de la web vía `GET /reports/{type}`.
+      una pantalla genérica que pinta resumen + **gráficos** + tablas con
+      selector de periodo. Reusa el cálculo de la web vía `GET /reports/{type}`.
       `lib/screens/reports_screen.dart` y `report_detail_screen.dart`.
+- [x] **Gráficos** en los reportes (líneas y barras, con `fl_chart`):
+      `lib/widgets/report_chart.dart`.
+
+## Barberos
+
+- [x] **Gestionar barberos** (`personal.view`): sección «Barberos» con la lista
+      (activos e inactivos), alta y edición (nombre, cargo, teléfono,
+      especialidad, si atiende citas, activo). La cuenta de acceso (usuario) se
+      sigue gestionando en la web. API: `GET /personal`, `GET /cargos`,
+      `POST /personal`, `PUT /personal/{id}`.
+      `lib/screens/barbers_screen.dart` y `barber_edit_screen.dart`.
 
 ## Caja
 

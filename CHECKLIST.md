@@ -90,8 +90,8 @@ su README, sección «API móvil».
       y hora elegida de las libres que da el servidor. Botón flotante en la
       agenda y entrada en el menú. Ver `lib/screens/new_appointment_screen.dart`.
 - [x] Reprogramar una cita (día, hora, barbero o servicios) desde su detalle
-- [ ] Filtrar por barbero dentro de la agenda de la barbería
-- [ ] Vista de semana
+- [x] Filtrar por barbero dentro de la agenda de la barbería
+- [x] Vista de semana (lunes a domingo, días vacíos a la vista)
 
 ## Lo mío
 
@@ -186,11 +186,13 @@ Lo que la app necesitará y el backend todavía no expone:
 - [x] Icono de la app e imagen de arranque con la marca. Se generan del logo
       SVG: `flutter test tool/render_app_assets.dart` (SVG→PNG), luego
       `dart run flutter_launcher_icons` y `dart run flutter_native_splash:create`.
-- [ ] Firma de Android (`keystore`) y perfil de iOS
+- [x] Firma de Android: `keystore` PKCS12 (`barbora-release.jks`) + `key.properties`;
+      el `build.gradle.kts` firma el release con él. Ver `GUIA-FIRMA-RELEASE.md`.
+- [ ] Perfil de firma de iOS (cuando se publique en App Store)
 - [x] El APK release apunta a producción (`https://barbora.sczsoft.net`); en
       desarrollo, al servidor local. `--dart-define=BARBORA_API_URL=...` manda
       sobre ambos. Ninguna credencial del servidor va dentro de la app.
 - [x] Permiso de Internet en el manifiesto principal (Flutter solo lo pone en
       los de depuración: sin él, el APK instalado no conecta a nada)
-- [ ] Desplegar Barbora en `barbora.sczsoft.net`: hoy ese subdominio sirve la
-      web corporativa de SCZ SOFT y la API responde 404
+- [x] Barbora desplegado en `https://barbora.sczsoft.net` (web + API). Logo y
+      archivos subidos se sirven tras correr `php artisan storage:link` (hecho).

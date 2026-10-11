@@ -123,6 +123,31 @@ void main() {
         });
   });
 
+  testWidgets('04b agenda de la semana', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '04b_agenda_semana',
+        session: s,
+        routes: {'/me': _me, '/my/agenda': _agenda, '/agenda': _agendaShop},
+        afterLoad: (t) async {
+          await t.tap(find.text('La barbería'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Semana'));
+          await t.pumpAndSettle();
+
+          // Las citas de prueba son del sábado 26/09/2026: se retrocede hasta
+          // esa semana, sea cual sea el día en que corre el test.
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final monday = today.subtract(Duration(days: today.weekday - 1));
+          final weeks = monday.difference(DateTime(2026, 9, 21)).inDays ~/ 7;
+          for (var i = 0; i < weeks; i++) {
+            await t.tap(find.byIcon(Icons.chevron_left));
+            await t.pumpAndSettle();
+          }
+        });
+  });
+
   testWidgets('05 comisiones', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 
@@ -682,6 +707,10 @@ final _agenda = <String, Object>{
 
 final _agendaShop = <String, Object>{
   ..._agenda,
+  'staff': [
+    {'id': 1, 'full_name': 'Iván Céspedes', 'agenda_color': '#3B82F6'},
+    {'id': 2, 'full_name': 'Tania Molina', 'agenda_color': '#E64A38'},
+  ],
   'data': [
     ...(_agenda['data']! as List),
     _cita(

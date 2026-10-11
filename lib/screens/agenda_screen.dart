@@ -28,8 +28,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
       if (!mounted) return;
       final auth = context.read<AuthController>();
       context.read<AgendaController>().load(
-            onlyMine: auth.me?.hasStaffProfile ?? false,
-          );
+        onlyMine: auth.me?.hasStaffProfile ?? false,
+      );
     });
   }
 
@@ -60,6 +60,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
       children: [
         _DayHeader(
           day: agenda.day,
+          rangeEnd: agenda.isWeek ? agenda.rangeEnd : null,
           isToday: agenda.isToday,
           summary: agenda.summary,
           showSummary: !agenda.loading && agenda.error == null,
@@ -99,8 +100,12 @@ class _AgendaScreenState extends State<AgendaScreen> {
                     ),
                   ),
 
+                SliverToBoxAdapter(child: _Filters(agenda: agenda)),
+
                 if (agenda.blocks.isNotEmpty)
-                  SliverToBoxAdapter(child: _BlocksBanner(blocks: agenda.blocks)),
+                  SliverToBoxAdapter(
+                    child: _BlocksBanner(blocks: agenda.blocks),
+                  ),
 
                 ..._body(agenda, symbol),
               ],
@@ -132,13 +137,17 @@ class _AgendaScreenState extends State<AgendaScreen> {
       ];
     }
 
+    if (agenda.isWeek) return [_week(agenda, symbol)];
+
     if (agenda.appointments.isEmpty) {
       return [
         SliverFillRemaining(
           hasScrollBody: false,
           child: EmptyView(
             icon: Icons.event_available_outlined,
-            title: agenda.onlyMine ? 'No tienes citas este día' : 'Sin citas este día',
+            title: agenda.onlyMine
+                ? 'No tienes citas este día'
+                : 'Sin citas este día',
             subtitle: agenda.isToday
                 ? 'Cuando recepción agende algo, aparecerá aquí.'
                 : 'Desliza hacia abajo para actualizar.',
@@ -155,22 +164,169 @@ class _AgendaScreenState extends State<AgendaScreen> {
           itemCount: agenda.appointments.length,
           separatorBuilder: (_, _) => const SizedBox(height: 11),
           itemBuilder: (context, i) {
-            final appointment = agenda.appointments[i];
-
-            return AppointmentTile(
-              appointment: appointment,
-              showBarber: !agenda.onlyMine,
-              currencySymbol: symbol,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AppointmentDetailScreen(appointmentId: appointment.id),
-                ),
-              ),
-            );
+            return _tile(agenda, agenda.appointments[i], symbol);
           },
         ),
       ),
     ];
+  }
+
+  /// La semana: los 7 días en orden, cada uno con sus citas. Los días vacíos
+  /// se dejan a la vista para que se lea dónde hay hueco.
+  Widget _week(AgendaController agenda, String symbol) {
+    final byDay = agenda.byDay;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 96),
+      sliver: SliverList.list(
+        children: [
+          for (final d in agenda.weekDays) ...[
+            _WeekDayHeader(
+              day: d,
+              count: byDay[d]?.length ?? 0,
+              isToday: d == today,
+            ),
+            if (byDay[d] == null)
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 4),
+                child: Text(
+                  'Sin citas',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12.5),
+                ),
+              )
+            else
+              for (final a in byDay[d]!)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 11),
+                  child: _tile(agenda, a, symbol),
+                ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(
+    AgendaController agenda,
+    Appointment appointment,
+    String symbol,
+  ) {
+    return AppointmentTile(
+      appointment: appointment,
+      showBarber: !agenda.onlyMine && agenda.personalId == null,
+      currencySymbol: symbol,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              AppointmentDetailScreen(appointmentId: appointment.id),
+        ),
+      ),
+    );
+  }
+}
+
+/// Día / Semana, y el barbero (solo en la agenda de la barbería).
+class _Filters extends StatelessWidget {
+  const _Filters({required this.agenda});
+
+  final AgendaController agenda;
+
+  @override
+  Widget build(BuildContext context) {
+    final showBarber = !agenda.onlyMine && agenda.staff.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SegmentedButton<bool>(
+            showSelectedIcon: false,
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            segments: const [
+              ButtonSegment(value: false, label: Text('Día')),
+              ButtonSegment(value: true, label: Text('Semana')),
+            ],
+            selected: {agenda.isWeek},
+            onSelectionChanged: (s) => agenda.setWeek(s.first),
+          ),
+          if (showBarber) ...[
+            const SizedBox(height: 10),
+            DropdownButtonFormField<int?>(
+              key: const Key('agenda-barber'),
+              initialValue: agenda.personalId,
+              isExpanded: true,
+              isDense: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.content_cut, size: 16),
+                prefixIconConstraints: BoxConstraints(minWidth: 34),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+              ),
+              items: [
+                const DropdownMenuItem<int?>(value: null, child: Text('Todos')),
+                for (final s in agenda.staff)
+                  DropdownMenuItem<int?>(
+                    value: s.id,
+                    child: Text(s.fullName, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: agenda.setPersonal,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekDayHeader extends StatelessWidget {
+  const _WeekDayHeader({
+    required this.day,
+    required this.count,
+    required this.isToday,
+  });
+
+  final DateTime day;
+  final int count;
+  final bool isToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = DateFormat("EEEE d", 'es').format(day);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+      child: Row(
+        children: [
+          Text(
+            label[0].toUpperCase() + label.substring(1),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: isToday ? BarboraTheme.copper : null,
+            ),
+          ),
+          if (isToday) ...[
+            const SizedBox(width: 6),
+            const Text(
+              '· hoy',
+              style: TextStyle(color: BarboraTheme.copper, fontSize: 12.5),
+            ),
+          ],
+          const Spacer(),
+          if (count > 0)
+            Text(
+              count == 1 ? '1 cita' : '$count citas',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -179,6 +335,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
 class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.day,
+    this.rangeEnd,
     required this.isToday,
     required this.summary,
     required this.showSummary,
@@ -189,6 +346,9 @@ class _DayHeader extends StatelessWidget {
   });
 
   final DateTime day;
+
+  /// Último día en la vista de semana; null en la de un día.
+  final DateTime? rangeEnd;
   final bool isToday;
   final AgendaSummary summary;
   final bool showSummary;
@@ -199,8 +359,16 @@ class _DayHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final weekday = DateFormat('EEEE', 'es').format(day);
-    final rest = DateFormat("d 'de' MMMM", 'es').format(day);
+    final end = rangeEnd;
+    final weekday = end == null
+        ? DateFormat('EEEE', 'es').format(day)
+        : 'Semana';
+    final rest = end == null
+        ? DateFormat("d 'de' MMMM", 'es').format(day)
+        : day.month == end.month
+        ? '${day.day} – ${DateFormat("d 'de' MMMM", 'es').format(end)}'
+        : '${DateFormat("d 'de' MMM", 'es').format(day)} – '
+              '${DateFormat("d 'de' MMM", 'es').format(end)}';
 
     return Container(
       // Degradado vertical que arranca en el color de la barra superior, para
@@ -231,7 +399,8 @@ class _DayHeader extends StatelessWidget {
                           Text(
                             weekday.isEmpty
                                 ? ''
-                                : weekday[0].toUpperCase() + weekday.substring(1),
+                                : weekday[0].toUpperCase() +
+                                      weekday.substring(1),
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -243,7 +412,9 @@ class _DayHeader extends StatelessWidget {
                           Text(
                             rest,
                             style: TextStyle(
-                              color: BarboraTheme.titanium.withValues(alpha: .8),
+                              color: BarboraTheme.titanium.withValues(
+                                alpha: .8,
+                              ),
                               fontSize: 12.5,
                             ),
                           ),
@@ -262,7 +433,10 @@ class _DayHeader extends StatelessWidget {
                 child: TextButton.icon(
                   onPressed: onToday,
                   icon: const Icon(Icons.today, size: 15),
-                  label: const Text('Ir a hoy', style: TextStyle(fontSize: 12.5)),
+                  label: Text(
+                    rangeEnd == null ? 'Ir a hoy' : 'Ir a esta semana',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
                   style: TextButton.styleFrom(
                     foregroundColor: BarboraTheme.copperLight,
                     visualDensity: VisualDensity.compact,
@@ -361,10 +535,10 @@ class _Stat extends StatelessWidget {
 class _StatDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
-        width: 1,
-        height: 26,
-        color: Colors.white.withValues(alpha: .1),
-      );
+    width: 1,
+    height: 26,
+    color: Colors.white.withValues(alpha: .1),
+  );
 }
 
 class _BlocksBanner extends StatelessWidget {
@@ -388,7 +562,11 @@ class _BlocksBanner extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.do_not_disturb_on_outlined, size: 16, color: Color(0xFFB45309)),
+              Icon(
+                Icons.do_not_disturb_on_outlined,
+                size: 16,
+                color: Color(0xFFB45309),
+              ),
               SizedBox(width: 7),
               Text(
                 'No se atiende',

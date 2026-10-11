@@ -174,6 +174,42 @@ void main() {
     expect(inDrawer('Nueva cita'), findsOneWidget);
   });
 
+  testWidgets('la agenda pasa a semana y se filtra por barbero', (tester) async {
+    await pumpApp(tester, _meRecepcion, agenda: {
+      ..._emptyAgenda,
+      'staff': [
+        {'id': 3, 'full_name': 'Tania Molina', 'agenda_color': '#E64A38'},
+        {'id': 5, 'full_name': 'Diego Rojas', 'agenda_color': '#3B82F6'},
+      ],
+    });
+
+    // Semana: pide lunes a domingo de una vez y lista los 7 días.
+    await tester.tap(find.text('Semana'));
+    await tester.pumpAndSettle();
+
+    final week = seen.lastWhere((r) => r.startsWith('GET /agenda'));
+    expect(week, contains('to='));
+    expect(find.text('Sin citas'), findsWidgets);
+
+    // Barbero: el filtro viaja como personal_id.
+    await tester.tap(find.byKey(const Key('agenda-barber')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Diego Rojas').last);
+    await tester.pumpAndSettle();
+
+    final filtered = seen.lastWhere((r) => r.startsWith('GET /agenda'));
+    expect(filtered, contains('personal_id=5'));
+    expect(filtered, contains('to='), reason: 'Sigue en semana.');
+
+    // «Todos» quita el filtro.
+    await tester.tap(find.byKey(const Key('agenda-barber')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Todos').last);
+    await tester.pumpAndSettle();
+
+    expect(seen.lastWhere((r) => r.startsWith('GET /agenda')), isNot(contains('personal_id')));
+  });
+
   testWidgets('se reserva una cita eligiendo de las horas libres', (tester) async {
     await pumpApp(tester, _meRecepcion);
 

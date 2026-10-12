@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/upper_case.dart';
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/service.dart';
@@ -22,9 +23,15 @@ class ServiceEditScreen extends StatefulWidget {
 
 class _ServiceEditScreenState extends State<ServiceEditScreen> {
   late final _name = TextEditingController(text: widget.service.name);
-  late final _price = TextEditingController(text: widget.service.price.toStringAsFixed(2));
-  late final _duration = TextEditingController(text: '${widget.service.durationMinutes}');
-  late final _description = TextEditingController(text: widget.service.description ?? '');
+  late final _price = TextEditingController(
+    text: widget.service.price.toStringAsFixed(2),
+  );
+  late final _duration = TextEditingController(
+    text: '${widget.service.durationMinutes}',
+  );
+  late final _description = TextEditingController(
+    text: widget.service.description ?? '',
+  );
   late bool _active = widget.service.active;
 
   bool _saving = false;
@@ -48,16 +55,21 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
     });
 
     try {
-      final body = await context.read<ApiClient>().put('/services/${widget.service.id}', body: {
-        'name': _name.text.trim(),
-        'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
-        'duration_minutes': int.tryParse(_duration.text.trim()) ?? 0,
-        'description': _description.text.trim(),
-        'active': _active ? 1 : 0,
-      });
+      final body = await context.read<ApiClient>().put(
+        '/services/${widget.service.id}',
+        body: {
+          'name': upperName(_name.text),
+          'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
+          'duration_minutes': int.tryParse(_duration.text.trim()) ?? 0,
+          'description': _description.text.trim(),
+          'active': _active ? 1 : 0,
+        },
+      );
 
       if (!mounted) return;
-      Navigator.of(context).pop(Service.fromJson(body['data'] as Map<String, dynamic>));
+      Navigator.of(
+        context,
+      ).pop(Service.fromJson(body['data'] as Map<String, dynamic>));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -87,10 +99,13 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
         children: [
           TextField(
             controller: _name,
-            textCapitalization: TextCapitalization.sentences,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: const [UpperCaseFormatter()],
             decoration: InputDecoration(
               labelText: 'Nombre',
-              errorText: _errors['name']?.isNotEmpty == true ? _errors['name'] : null,
+              errorText: _errors['name']?.isNotEmpty == true
+                  ? _errors['name']
+                  : null,
             ),
           ),
           const SizedBox(height: 14),
@@ -101,11 +116,15 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
               Expanded(
                 child: TextField(
                   controller: _price,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Precio',
                     prefixText: '$symbol ',
-                    errorText: _errors['price']?.isNotEmpty == true ? _errors['price'] : null,
+                    errorText: _errors['price']?.isNotEmpty == true
+                        ? _errors['price']
+                        : null,
                   ),
                 ),
               ),
@@ -116,7 +135,9 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: 'Duración (min)',
-                    errorText: _errors['duration_minutes']?.isNotEmpty == true ? _errors['duration_minutes'] : null,
+                    errorText: _errors['duration_minutes']?.isNotEmpty == true
+                        ? _errors['duration_minutes']
+                        : null,
                   ),
                 ),
               ),
@@ -141,12 +162,20 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             activeThumbColor: BarboraTheme.copper,
             contentPadding: EdgeInsets.zero,
             title: const Text('Activo'),
-            subtitle: const Text('Un servicio inactivo no aparece al reservar ni al cobrar.'),
+            subtitle: const Text(
+              'Un servicio inactivo no aparece al reservar ni al cobrar.',
+            ),
           ),
 
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: BarboraTheme.copperDark, fontSize: 13)),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: BarboraTheme.copperDark,
+                fontSize: 13,
+              ),
+            ),
           ],
 
           const SizedBox(height: 20),
@@ -154,8 +183,12 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             onPressed: _saving ? null : _save,
             icon: _saving
                 ? const SizedBox(
-                    width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Icon(Icons.save),
             label: Text(_saving ? 'Guardando…' : 'Guardar cambios'),

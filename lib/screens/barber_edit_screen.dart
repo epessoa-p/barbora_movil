@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/upper_case.dart';
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/barber.dart';
@@ -24,7 +25,9 @@ class BarberEditScreen extends StatefulWidget {
 class _BarberEditScreenState extends State<BarberEditScreen> {
   late final _name = TextEditingController(text: widget.barber?.fullName ?? '');
   late final _phone = TextEditingController(text: widget.barber?.phone ?? '');
-  late final _specialty = TextEditingController(text: widget.barber?.specialty ?? '');
+  late final _specialty = TextEditingController(
+    text: widget.barber?.specialty ?? '',
+  );
 
   int? _cargoId;
   late bool _bookable = widget.barber?.bookable ?? true;
@@ -62,9 +65,11 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
     try {
       final body = await context.read<ApiClient>().get('/cargos');
       if (!mounted) return;
-      setState(() => _cargos = (body['data'] as List? ?? [])
-          .map((e) => CargoOption.fromJson(e as Map<String, dynamic>))
-          .toList());
+      setState(
+        () => _cargos = (body['data'] as List? ?? [])
+            .map((e) => CargoOption.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _loadError = e);
@@ -81,7 +86,7 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
     });
 
     final body = {
-      'full_name': _name.text.trim(),
+      'full_name': upperName(_name.text),
       'cargo_id': _cargoId,
       'phone': _phone.text.trim(),
       'specialty': _specialty.text.trim(),
@@ -96,7 +101,9 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           : await api.post('/personal', body: body);
 
       if (!mounted) return;
-      Navigator.of(context).pop(Barber.fromJson(res['data'] as Map<String, dynamic>));
+      Navigator.of(
+        context,
+      ).pop(Barber.fromJson(res['data'] as Map<String, dynamic>));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -119,10 +126,12 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
         title: Text(widget.isEditing ? 'Editar barbero' : 'Nuevo barbero'),
       ),
       body: _loadingCargos
-          ? const Center(child: CircularProgressIndicator(color: BarboraTheme.copper))
+          ? const Center(
+              child: CircularProgressIndicator(color: BarboraTheme.copper),
+            )
           : _loadError != null
-              ? ErrorView(error: _loadError!, onRetry: _loadCargos)
-              : _form(),
+          ? ErrorView(error: _loadError!, onRetry: _loadCargos)
+          : _form(),
     );
   }
 
@@ -132,10 +141,13 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
       children: [
         TextField(
           controller: _name,
-          textCapitalization: TextCapitalization.words,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: const [UpperCaseFormatter()],
           decoration: InputDecoration(
             labelText: 'Nombre completo',
-            errorText: _errors['full_name']?.isNotEmpty == true ? _errors['full_name'] : null,
+            errorText: _errors['full_name']?.isNotEmpty == true
+                ? _errors['full_name']
+                : null,
           ),
         ),
         const SizedBox(height: 14),
@@ -145,10 +157,13 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Cargo',
-            errorText: _errors['cargo_id']?.isNotEmpty == true ? _errors['cargo_id'] : null,
+            errorText: _errors['cargo_id']?.isNotEmpty == true
+                ? _errors['cargo_id']
+                : null,
           ),
           items: [
-            for (final c in _cargos) DropdownMenuItem(value: c.id, child: Text(c.name)),
+            for (final c in _cargos)
+              DropdownMenuItem(value: c.id, child: Text(c.name)),
           ],
           onChanged: (v) => setState(() => _cargoId = v),
         ),
@@ -185,7 +200,9 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           activeThumbColor: BarboraTheme.copper,
           contentPadding: EdgeInsets.zero,
           title: const Text('Atiende citas'),
-          subtitle: const Text('Si está activo, aparece al reservar y al asignar servicios.'),
+          subtitle: const Text(
+            'Si está activo, aparece al reservar y al asignar servicios.',
+          ),
         ),
         SwitchListTile(
           value: _active,
@@ -193,12 +210,20 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           activeThumbColor: BarboraTheme.copper,
           contentPadding: EdgeInsets.zero,
           title: const Text('Activo'),
-          subtitle: const Text('Un barbero inactivo deja de aparecer en la barbería.'),
+          subtitle: const Text(
+            'Un barbero inactivo deja de aparecer en la barbería.',
+          ),
         ),
 
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: const TextStyle(color: BarboraTheme.copperDark, fontSize: 13)),
+          Text(
+            _error!,
+            style: const TextStyle(
+              color: BarboraTheme.copperDark,
+              fontSize: 13,
+            ),
+          ),
         ],
 
         const SizedBox(height: 20),
@@ -206,13 +231,19 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           onPressed: _saving ? null : _save,
           icon: _saving
               ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.save),
-          label: Text(_saving
-              ? 'Guardando…'
-              : (widget.isEditing ? 'Guardar cambios' : 'Crear barbero')),
+          label: Text(
+            _saving
+                ? 'Guardando…'
+                : (widget.isEditing ? 'Guardar cambios' : 'Crear barbero'),
+          ),
         ),
       ],
     );

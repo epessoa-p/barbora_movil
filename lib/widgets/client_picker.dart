@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/upper_case.dart';
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/client.dart';
@@ -16,7 +17,11 @@ import 'error_view.dart';
 ///
 /// Devuelve el [Client] elegido, o null si se cerró sin elegir.
 class ClientPickerSheet extends StatefulWidget {
-  const ClientPickerSheet({super.key, required this.api, this.canCreate = false});
+  const ClientPickerSheet({
+    super.key,
+    required this.api,
+    this.canCreate = false,
+  });
 
   final ApiClient api;
 
@@ -82,16 +87,18 @@ class _ClientPickerSheetState extends State<ClientPickerSheet> {
     });
 
     try {
-      final body = await widget.api.get('/clients', query: {
-        if (term.trim().isNotEmpty) 'q': term.trim(),
-        'per_page': 20,
-      });
+      final body = await widget.api.get(
+        '/clients',
+        query: {if (term.trim().isNotEmpty) 'q': term.trim(), 'per_page': 20},
+      );
 
       if (!mounted || request != _request) return;
 
-      setState(() => _results = (body['data'] as List? ?? [])
-          .map((e) => Client.fromJson(e as Map<String, dynamic>))
-          .toList());
+      setState(
+        () => _results = (body['data'] as List? ?? [])
+            .map((e) => Client.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
     } on ApiException catch (e) {
       if (!mounted || request != _request) return;
       setState(() => _error = e);
@@ -103,7 +110,8 @@ class _ClientPickerSheetState extends State<ClientPickerSheet> {
   Future<void> _create() async {
     final client = await showDialog<Client>(
       context: context,
-      builder: (_) => _QuickClientDialog(api: widget.api, initialName: _search.text.trim()),
+      builder: (_) =>
+          _QuickClientDialog(api: widget.api, initialName: _search.text.trim()),
     );
 
     if (client != null && mounted) Navigator.of(context).pop(client);
@@ -144,7 +152,11 @@ class _ClientPickerSheetState extends State<ClientPickerSheet> {
                 onTap: _create,
                 leading: const CircleAvatar(
                   backgroundColor: BarboraTheme.copper,
-                  child: Icon(Icons.person_add_alt_1, color: Colors.white, size: 20),
+                  child: Icon(
+                    Icons.person_add_alt_1,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
                 title: Text(
                   _search.text.trim().isEmpty
@@ -163,7 +175,9 @@ class _ClientPickerSheetState extends State<ClientPickerSheet> {
 
   Widget _list() {
     if (_loading && _results.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: BarboraTheme.copper));
+      return const Center(
+        child: CircularProgressIndicator(color: BarboraTheme.copper),
+      );
     }
 
     if (_error != null) {
@@ -189,10 +203,16 @@ class _ClientPickerSheetState extends State<ClientPickerSheet> {
             backgroundColor: BarboraTheme.canvas,
             child: Text(
               c.fullName.isEmpty ? '?' : c.fullName[0].toUpperCase(),
-              style: const TextStyle(fontWeight: FontWeight.w800, color: BarboraTheme.ink),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: BarboraTheme.ink,
+              ),
             ),
           ),
-          title: Text(c.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+          title: Text(
+            c.fullName,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           subtitle: c.phone == null ? null : Text(c.phone!),
         );
       },
@@ -239,10 +259,13 @@ class _QuickClientDialogState extends State<_QuickClientDialog> {
     });
 
     try {
-      final body = await widget.api.post('/clients', body: {
-        'full_name': _name.text.trim(),
-        if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
-      });
+      final body = await widget.api.post(
+        '/clients',
+        body: {
+          'full_name': upperName(_name.text),
+          if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
+        },
+      );
 
       final client = Client.fromJson(body['data'] as Map<String, dynamic>);
       if (mounted) Navigator.of(context).pop(client);
@@ -250,7 +273,9 @@ class _QuickClientDialogState extends State<_QuickClientDialog> {
       if (!mounted) return;
       setState(() {
         _nameError = e.firstErrorFor('full_name');
-        _error = _nameError == null ? (e.firstErrorFor('phone') ?? e.message) : null;
+        _error = _nameError == null
+            ? (e.firstErrorFor('phone') ?? e.message)
+            : null;
       });
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -267,8 +292,12 @@ class _QuickClientDialogState extends State<_QuickClientDialog> {
           TextField(
             controller: _name,
             autofocus: widget.initialName.isEmpty,
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(labelText: 'Nombre completo', errorText: _nameError),
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: const [UpperCaseFormatter()],
+            decoration: InputDecoration(
+              labelText: 'Nombre completo',
+              errorText: _nameError,
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -278,7 +307,13 @@ class _QuickClientDialogState extends State<_QuickClientDialog> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 10),
-            Text(_error!, style: const TextStyle(color: BarboraTheme.copperDark, fontSize: 13)),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: BarboraTheme.copperDark,
+                fontSize: 13,
+              ),
+            ),
           ],
         ],
       ),

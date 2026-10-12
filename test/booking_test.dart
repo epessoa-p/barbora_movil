@@ -401,9 +401,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(seen.any((r) => r == 'POST /personal'), isTrue);
-    expect(booked!['full_name'], 'Marco Vaca');
+    expect(booked!['full_name'], 'MARCO VACA', reason: 'Los nombres se guardan en mayúsculas.');
     expect(booked!['cargo_id'], 1);
-    expect(find.text('Marco Vaca'), findsOneWidget);
+    expect(find.text('MARCO VACA'), findsOneWidget);
   });
 
   testWidgets('en el cobro se asigna un barbero a un servicio', (tester) async {

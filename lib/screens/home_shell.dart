@@ -10,13 +10,17 @@ import '../widgets/brand_logo.dart';
 import '../widgets/error_view.dart';
 import 'agenda_screen.dart';
 import 'barbers_screen.dart';
+import 'blocks_screen.dart';
 import 'cash_screen.dart';
 import 'checkout_screen.dart';
 import 'clients_screen.dart';
+import 'home_screen.dart';
+import 'inventory_screen.dart';
 import 'commissions_screen.dart';
 import 'new_appointment_screen.dart';
 import 'profile_screen.dart';
 import 'reports_screen.dart';
+import 'sales_screen.dart';
 import 'services_screen.dart';
 
 /// Las secciones de la app y las acciones rápidas, con lo que exige cada una.
@@ -34,14 +38,24 @@ class AppMenu {
   bool _allows(String module, String permission) =>
       (me?.hasModule(module) ?? false) && (me?.can(permission) ?? false);
 
+  /// El Inicio (resumen del día): solo para quien tiene `dashboard.view`,
+  /// el jefe. Es la primera sección, así que con él la app abre ahí.
+  bool get home => me?.can('dashboard.view') ?? false;
+
   bool get agenda => _allows('agenda', 'appointments.view');
 
   bool get newAppointment => _allows('agenda', 'appointments.create');
+
+  /// Vacaciones, feriados y descansos.
+  bool get blocks => _allows('agenda', 'agenda_blocks.view');
 
   bool get clients => _allows('clientes', 'clients.view');
 
   /// Los servicios se consultan dentro del módulo de agenda.
   bool get services => _allows('agenda', 'services.view');
+
+  /// Productos y existencias: entradas, salidas, ajustes.
+  bool get inventory => _allows('inventario', 'products.view');
 
   /// Gestionar barberos (personal): administrativo, solo por permiso.
   bool get barbers => me?.can('personal.view') ?? false;
@@ -51,6 +65,9 @@ class AppMenu {
 
   bool get checkout => _allows('pos', 'sales.create');
 
+  /// Historial de ventas, con anulación si se tiene sales.delete.
+  bool get sales => _allows('pos', 'sales.view');
+
   /// «Lo mío»: sin ficha de personal no hay comisiones que enseñar.
   bool get commissions => (me?.hasStaffProfile ?? false) && (me?.hasModule('comisiones') ?? false);
 
@@ -59,22 +76,31 @@ class AppMenu {
   // El perfil ya no es una sección del menú: se abre con el botón de arriba a
   // la derecha (ver HomeShell).
   List<Section> get sections => [
+        // El Inicio va primero: con él, la app abre ahí; sin él, en la Agenda.
+        if (home) Section.home,
         if (agenda) Section.agenda,
+        if (blocks) Section.blocks,
         if (clients) Section.clients,
         if (services) Section.services,
+        if (inventory) Section.inventory,
         if (barbers) Section.barbers,
         if (cash) Section.cash,
+        if (sales) Section.sales,
         if (commissions) Section.commissions,
         if (reports) Section.reports,
       ];
 }
 
 enum Section {
+  home('Inicio', Icons.home_outlined, Icons.home),
   agenda('Agenda', Icons.calendar_today_outlined, Icons.calendar_today),
+  blocks('Bloqueos', Icons.event_busy_outlined, Icons.event_busy),
   clients('Clientes', Icons.people_outline, Icons.people),
   services('Servicios', Icons.design_services_outlined, Icons.design_services),
+  inventory('Inventario', Icons.inventory_2_outlined, Icons.inventory_2),
   barbers('Barberos', Icons.content_cut_outlined, Icons.content_cut),
   cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
+  sales('Ventas', Icons.receipt_long_outlined, Icons.receipt_long),
   commissions('Comisiones', Icons.payments_outlined, Icons.payments),
   reports('Reportes', Icons.bar_chart_outlined, Icons.bar_chart);
 
@@ -85,11 +111,15 @@ enum Section {
   final IconData activeIcon;
 
   Widget get screen => switch (this) {
+        Section.home => const HomeScreen(),
         Section.agenda => const AgendaScreen(),
+        Section.blocks => const BlocksScreen(),
         Section.clients => const ClientsScreen(),
         Section.services => const ServicesScreen(),
+        Section.inventory => const InventoryScreen(),
         Section.barbers => const BarbersScreen(),
         Section.cash => const CashScreen(),
+        Section.sales => const SalesScreen(),
         Section.commissions => const CommissionsScreen(),
         Section.reports => const ReportsScreen(),
       };
@@ -144,7 +174,26 @@ class _HomeShellState extends State<HomeShell> {
 
   void _checkout() {
     Navigator.of(context).pop();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+    _openCheckout();
+  }
+
+  void _openCheckout() =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+
+  /// El Inicio con sus atajos: cada uno solo si esa sección o acción existe
+  /// para el usuario (si no, la tarjeta no lleva a ningún sitio).
+  Widget _home(AppMenu menu) {
+    VoidCallback? goTo(Section s) =>
+        menu.sections.contains(s) ? () => setState(() => _current = s) : null;
+
+    return HomeScreen(
+      onOpenAgenda: goTo(Section.agenda),
+      onOpenCash: goTo(Section.cash),
+      onOpenSales: goTo(Section.sales),
+      onOpenInventory: goTo(Section.inventory),
+      onNewAppointment: menu.newAppointment ? _newAppointment : null,
+      onCheckout: menu.checkout ? _openCheckout : null,
+    );
   }
 
   /// El perfil se abre como pantalla propia (ya no es sección del menú). Como
@@ -245,7 +294,11 @@ class _HomeShellState extends State<HomeShell> {
                 index: sections.indexOf(current),
                 children: [
                   for (final s in sections)
-                    _visited.contains(s) ? s.screen : const SizedBox.shrink(),
+                    !_visited.contains(s)
+                        ? const SizedBox.shrink()
+                        : s == Section.home
+                            ? _home(menu)
+                            : s.screen,
                 ],
               ),
       ),

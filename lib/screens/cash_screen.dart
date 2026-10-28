@@ -7,6 +7,7 @@ import '../state/auth_controller.dart';
 import '../state/cash_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
+import 'cash_history_screen.dart';
 import 'checkout_screen.dart';
 
 /// El turno de caja. Tres estados bien distintos:
@@ -57,6 +58,19 @@ class _CashScreenState extends State<CashScreen> {
             ..._openShift(session, symbol)
           else
             _ClosedShiftCard(session: session, symbol: symbol),
+
+          // Los cierres anteriores, con su arqueo: siempre a mano.
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CashHistoryScreen()),
+              ),
+              icon: const Icon(Icons.history, size: 19),
+              label: const Text('Turnos anteriores'),
+              style: TextButton.styleFrom(foregroundColor: BarboraTheme.copperDark),
+            ),
+          ),
         ],
       ),
     );
@@ -485,7 +499,7 @@ class _MovementsList extends StatelessWidget {
         ...session.movements.map(
           (m) => Padding(
             padding: const EdgeInsets.only(bottom: 9),
-            child: _MovementTile(movement: m, symbol: symbol),
+            child: CashMovementTile(movement: m, symbol: symbol),
           ),
         ),
       ],
@@ -493,8 +507,8 @@ class _MovementsList extends StatelessWidget {
   }
 }
 
-class _MovementTile extends StatelessWidget {
-  const _MovementTile({required this.movement, required this.symbol});
+class CashMovementTile extends StatelessWidget {
+  const CashMovementTile({super.key, required this.movement, required this.symbol});
 
   final CashMovement movement;
   final String symbol;

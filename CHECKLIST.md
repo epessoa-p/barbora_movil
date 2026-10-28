@@ -65,6 +65,12 @@ su README, sección «API móvil».
       iniciales si no hay logo); sin el logo de Barbora arriba.
 - [x] **Perfil por el AppBar**: botón redondo con icono de persona arriba a la
       derecha abre «Mi perfil»; ya no está como sección del drawer.
+- [x] **Inicio (resumen del día)** solo con el permiso `dashboard.view` («Ver
+      Inicio», se marca en el cargo): con él la app abre en el Inicio; sin él,
+      en la Agenda. Muestra lo cobrado hoy vs ayer, citas de hoy y las
+      próximas, la caja, lo que hay que reponer y la semana en un gráfico;
+      cada bloque según su módulo y permiso. `GET /dashboard`. Ver
+      `lib/screens/home_screen.dart`.
 
 ## Acceso
 
@@ -84,6 +90,7 @@ su README, sección «API móvil».
 - [x] Marcar atendida / no se presentó / cancelada / confirmada
 - [x] Motivo al cancelar
 - [x] Mostrar los bloqueos del día (vacaciones, feriados)
+- [x] Gestionar bloqueos desde la app: lista (próximos / pasados), alta, edición y baja. Avisa de las citas que caen dentro sin cancelarlas, igual que la web. Ver `lib/screens/blocks_screen.dart`.
 - [x] «Mi agenda» frente a la agenda completa de la barbería
 - [x] Resumen del día: citas, pendientes, atendidas y tiempo ocupado
 - [x] **Crear citas**: cliente (buscar o alta rápida), barbero, servicios, día
@@ -117,6 +124,10 @@ su README, sección «API móvil».
       antes de prometérselo al cliente.
 - [x] **Comprobante** al terminar el cobro, y copiable como texto para mandarlo
       por WhatsApp (que es lo que se hace de verdad; nadie lleva impresora).
+- [x] **Historial de ventas** (sección «Ventas», `sales.view`): hoy, ayer, 7 días
+      o el mes, con lo cobrado, propinas y anuladas. Cada venta abre su
+      comprobante; con `sales.delete` se anula desde ahí (motivo opcional), con
+      el mismo efecto que en la web. Ver `lib/screens/sales_screen.dart`.
 - [x] Descuento y propina desde la pantalla de cobro
 - [x] Elegir el cliente al cobrar una venta suelta (buscar o alta rápida)
 - [x] **Barbero por servicio en el cobro**: cada línea de servicio se atribuye a
@@ -129,11 +140,22 @@ su README, sección «API móvil».
       precio y descripción. Sección del menú (`agenda` + `services.view`).
 - [x] **Editar servicios** (precio, duración, nombre, estado) con `services.edit`
       → `PUT /services/{id}`. Ver `lib/screens/service_edit_screen.dart`.
+- [x] **Crear servicios** (`services.create`) y elegir su **categoría** al crear
+      o editar. Quien edita ve también los inactivos, para poder reactivarlos.
+- [x] **Inventario** (sección propia, plan `inventario` + `products.view`):
+      todos los productos (también insumos), existencia con su unidad, filtro
+      «Stock bajo», alta y edición de productos (`products.create/edit`), y en
+      la ficha entrada / salida / ajuste por recuento (`stock.create`) con el
+      historial de movimientos. Ver `lib/screens/inventory_screen.dart`.
 - [x] Buscar clientes y alta rápida (compartido entre «Nueva cita» y «Cobrar»)
 - [x] **Ficha del cliente**: sección «Clientes» (buscar → ficha) con resumen
       (visitas, gasto, última visita, citas por venir), preferencias, alergias
       y últimas citas. `lib/screens/clients_screen.dart` y
       `client_detail_screen.dart`.
+- [x] **Alta y edición de clientes** con la ficha completa (teléfono, correo,
+      documento, cumpleaños, preferencias, alergias, notas, activo). Botón
+      «Nuevo cliente» (`clients.create`) y «Editar» en la ficha
+      (`clients.edit`). Ver `lib/screens/client_edit_screen.dart`.
 
 ## Reportes
 
@@ -159,6 +181,10 @@ su README, sección «API móvil».
 - [x] **Detalle en los movimientos**: cada venta muestra qué incluyó
       (servicios/productos) y quién la registró. El backend arma el detalle en
       `GET /cash/movements`.
+- [x] **Historial de turnos** («Turnos anteriores» en Caja): cada cierre con
+      esperado, contado y diferencia (cuadrada / sobrante / faltante); el
+      detalle trae el desglose por forma de pago, las notas y los movimientos.
+      `GET /cash/sessions` y `/cash/sessions/{id}`. Ver `lib/screens/cash_history_screen.dart`.
 
 ## Pendiente de API
 

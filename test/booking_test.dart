@@ -68,7 +68,79 @@ void main() {
               },
             };
           }(),
+        'GET /dashboard' => _dashboard,
+        'GET /service-categories' => {
+            'data': [
+              {'id': 1, 'name': 'Cortes'},
+              {'id': 2, 'name': 'Barba'},
+            ],
+          },
+        'POST /services' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'ok',
+              'data': {
+                'id': 9,
+                'name': booked!['name'],
+                'duration_minutes': booked!['duration_minutes'],
+                'price': (booked!['price'] as num).toDouble(),
+                'category_id': booked!['service_category_id'],
+                'category': 'Barba',
+                'active': true,
+              },
+            };
+          }(),
+        'GET /cash/session' => {'data': null, 'message': 'No hay ningún turno de caja abierto.'},
+        'GET /cash/cajas' => {
+            'data': [
+              {'id': 1, 'name': 'Caja principal', 'is_open': false},
+            ],
+          },
+        'GET /cash/sessions' => {'data': [_turnoCerrado]},
+        'GET /cash/sessions/3' => {'data': _turnoCerrado},
+        'GET /inventory/products' => _inventario,
+        'GET /inventory/options' => _inventarioOpciones,
+        'GET /inventory/products/20' => {'data': _cera},
+        'POST /inventory/movements' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'Entrada registrada: «CERA MATE» queda en 12 unidades en «Central».',
+              'data': {..._cera, 'stock': 12.0, 'stock_label': '12 unidades', 'low_stock': false},
+            };
+          }(),
+        'GET /sales' => _ventas,
+        'GET /sales/7' => {'data': _venta},
+        'PATCH /sales/7/cancel' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'Venta V-0007 anulada.',
+              'settled_commissions': 0,
+              'data': {
+                ..._venta,
+                'status': 'anulada',
+                'cancel_reason': booked!['cancel_reason'],
+                'cancelled_by': 'Lucía Recepción',
+                'cancelled_at': '2026-10-22T18:00:00-04:00',
+              },
+            };
+          }(),
+        'GET /agenda-blocks' => _bloqueos,
+        'POST /agenda-blocks' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'Bloqueo creado. Ojo: ya hay 1 cita reservada dentro de ese periodo.',
+              'clashes': 1,
+              'data': (_bloqueos['data'] as List).first,
+            };
+          }(),
         'GET /clients/3' => {'data': _clientDetail},
+        'PUT /clients/3' => () {
+            booked = jsonDecode(request.body) as Map<String, dynamic>;
+            return {
+              'message': 'Cliente actualizado.',
+              'data': {..._clientDetail, ...booked!},
+            };
+          }(),
         'GET /booking/slots' => {'data': ['09:00', '09:30', '10:00']},
         'GET /clients' => _clients,
         'POST /appointments' => () {
@@ -157,6 +229,13 @@ void main() {
 
     expect(inDrawer('Nueva cita'), findsOneWidget);
     expect(inDrawer('Cobrar'), findsOneWidget);
+
+    // El menú ya no cabe entero: lo de abajo se ve haciendo scroll.
+    await tester.scrollUntilVisible(
+      inDrawer('Caja'),
+      120,
+      scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first,
+    );
     expect(inDrawer('Caja'), findsOneWidget);
     expect(inDrawer('Comisiones'), findsNothing, reason: 'Sin ficha de personal no hay comisiones.');
   });
@@ -208,6 +287,91 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(seen.lastWhere((r) => r.startsWith('GET /agenda')), isNot(contains('personal_id')));
+  });
+
+  testWidgets('inventario: stock bajo, ficha y entrada de mercadería', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await tapDrawer(tester, 'Inventario');
+
+    expect(find.text('CERA MATE'), findsOneWidget);
+    expect(find.text('Stock bajo (1)'), findsOneWidget);
+    expect(find.text('reponer'), findsOneWidget);
+
+    await tester.tap(find.text('CERA MATE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 unidades'), findsOneWidget);
+    expect(find.textContaining('reponer · mín. 3'), findsOneWidget);
+
+    await tester.tap(find.text('Entrada'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Registrar entrada'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Cantidad'), '10');
+    await tester.dragUntilVisible(find.text('Registrar'), find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registrar'));
+    await tester.pumpAndSettle();
+
+    expect(booked!['type'], 'entrada');
+    expect(booked!['product_id'], 20);
+    expect(booked!['warehouse_id'], 1, reason: 'Con un solo almacén se usa ese, sin preguntar.');
+    expect(booked!['quantity'], 10);
+    expect(booked!['reason'], 'compra');
+    expect(find.textContaining('queda en 12 unidades'), findsOneWidget);
+  });
+
+  testWidgets('el historial de ventas abre el comprobante y anula', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await tapDrawer(tester, 'Ventas');
+
+    expect(seen.any((r) => r.startsWith('GET /sales?from=')), isTrue);
+    expect(find.text('V-0007'), findsOneWidget);
+
+    await tester.tap(find.text('V-0007'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Comprobante'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Anular venta'), 200,
+        scrollable: find.byType(Scrollable).last);
+    await tester.tap(find.text('Anular venta'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Motivo (opcional)'), 'Cobro duplicado');
+    await tester.tap(find.widgetWithText(FilledButton, 'Anular'));
+    await tester.pumpAndSettle();
+
+    expect(booked!['cancel_reason'], 'Cobro duplicado');
+    expect(find.text('ANULADA'), findsOneWidget);
+    expect(find.text('Anular venta'), findsNothing, reason: 'Una venta anulada no se anula otra vez.');
+  });
+
+  testWidgets('se lista y se crea un bloqueo de agenda', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await tapDrawer(tester, 'Bloqueos');
+
+    expect(find.text('Vacaciones de Tania'), findsOneWidget);
+    expect(find.text('02/11/2026 – 06/11/2026'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Nuevo bloqueo'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Nombre'), 'Año nuevo');
+    await tester.scrollUntilVisible(find.text('Crear bloqueo'), 200,
+        scrollable: find.byType(Scrollable).last);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Crear bloqueo'));
+    await tester.pumpAndSettle();
+
+    expect(booked!['title'], 'Año nuevo');
+    expect(booked!['all_day'], isTrue);
+    expect(booked!['personal_id'], isNull, reason: 'Recepción sin ficha parte de toda la barbería.');
+    expect(booked!.containsKey('start_time'), isFalse, reason: 'Todo el día no manda horas.');
+
+    // El aviso de citas que caen dentro llega a la pantalla.
+    expect(find.textContaining('ya hay 1 cita'), findsOneWidget);
   });
 
   testWidgets('se reserva una cita eligiendo de las horas libres', (tester) async {
@@ -322,6 +486,35 @@ void main() {
     expect(find.textContaining('Corte clásico'), findsWidgets);
   });
 
+  testWidgets('se edita la ficha de un cliente', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await tapDrawer(tester, 'Clientes');
+
+    await tester.tap(find.text('Carlos Mendoza').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Editar'));
+    await tester.pumpAndSettle();
+
+    // El formulario llega relleno con lo que ya se sabía.
+    expect(find.text('Editar cliente'), findsOneWidget);
+    expect(find.text('9876543'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Teléfono'), '70000001');
+    await tester.enterText(find.widgetWithText(TextField, 'Alergias'), 'Tinte con amoníaco');
+    await tester.dragUntilVisible(find.text('Guardar cambios'), find.byType(ListView).last, const Offset(0, -200));
+    await tester.drag(find.byType(ListView).last, const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guardar cambios'));
+    await tester.pumpAndSettle();
+
+    expect(booked!['phone'], '70000001');
+    expect(booked!['allergies'], 'Tinte con amoníaco');
+    expect(booked!['full_name'], 'CARLOS MENDOZA', reason: 'El nombre se guarda en mayúsculas.');
+    expect(booked!['document_number'], '9876543', reason: 'Lo que no se tocó se manda igual.');
+    expect(find.text('Ficha del cliente'), findsOneWidget, reason: 'Vuelve a la ficha.');
+  });
+
   testWidgets('la sección Servicios lista el catálogo', (tester) async {
     await pumpApp(tester, _meRecepcion);
 
@@ -331,6 +524,86 @@ void main() {
 
     expect(find.text('Corte clásico'), findsOneWidget);
     expect(find.text('Barba'), findsOneWidget);
+  });
+
+  testWidgets('el jefe (dashboard.view) entra al Inicio', (tester) async {
+    await pumpApp(tester, {
+      ..._meRecepcion,
+      'permissions': [...(_meRecepcion['permissions']! as List), 'dashboard.view'],
+    });
+
+    expect(seen.contains('GET /dashboard'), isTrue);
+    expect(find.widgetWithText(AppBar, 'Inicio'), findsOneWidget);
+    expect(find.text('Bs 320.00'), findsOneWidget);
+    expect(find.text('+28 % vs ayer'), findsOneWidget);
+    expect(find.text('Citas de hoy'.toUpperCase()), findsOneWidget);
+
+    // La tarjeta de citas lleva a la Agenda.
+    await tester.tap(find.text('CITAS DE HOY'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Agenda'), findsOneWidget);
+  });
+
+  testWidgets('sin dashboard.view la app abre en la Agenda', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+
+    expect(seen.contains('GET /dashboard'), isFalse);
+    expect(find.widgetWithText(AppBar, 'Agenda'), findsOneWidget);
+
+    await openDrawer(tester);
+    expect(inDrawer('Inicio'), findsNothing);
+  });
+
+  testWidgets('se crea un servicio con su categoría', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await tapDrawer(tester, 'Servicios');
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Nuevo servicio'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nuevo servicio'), findsWidgets);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Nombre'), 'Perfilado de barba');
+    await tester.tap(find.text('Sin categoría'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Barba').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Precio'), '25');
+    await tester.enterText(find.widgetWithText(TextField, 'Duración (min)'), '20');
+
+    await tester.dragUntilVisible(find.text('Crear servicio'), find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Crear servicio'));
+    await tester.pumpAndSettle();
+
+    expect(seen.contains('POST /services'), isTrue);
+    expect(booked!['name'], 'PERFILADO DE BARBA');
+    expect(booked!['service_category_id'], 2);
+    expect(booked!['price'], 25);
+    expect(booked!['duration_minutes'], 20);
+    expect(find.textContaining('creado'), findsOneWidget);
+  });
+
+  testWidgets('caja: se revisa un turno anterior con su arqueo', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await tapDrawer(tester, 'Caja');
+
+    await tester.dragUntilVisible(find.text('Turnos anteriores'), find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Turnos anteriores'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Turnos de caja'), findsOneWidget);
+    expect(find.text('Faltante'), findsOneWidget);
+    expect(find.text('−Bs 5.00'), findsOneWidget);
+
+    await tester.tap(find.text('Faltante'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Turno de caja'), findsOneWidget);
+    await tester.dragUntilVisible(find.text('Venta V-0001'), find.byType(ListView).last, const Offset(0, -200));
+    expect(find.text('Faltó cambio'), findsOneWidget);
+    expect(find.text('Venta V-0001'), findsOneWidget);
   });
 
   testWidgets('se edita el precio de un servicio', (tester) async {
@@ -500,18 +773,227 @@ const _meRecepcion = <String, Object>{
     'appointments.view',
     'appointments.create',
     'appointments.edit',
+    'agenda_blocks.view',
+    'agenda_blocks.create',
     'clients.view',
     'clients.create',
+    'clients.edit',
     'services.view',
     'services.edit',
+    'services.create',
     'personal.view',
     'personal.create',
     'personal.edit',
     'cash.view',
     'sales.create',
+    'sales.view',
+    'sales.delete',
     'reports.view',
+    'products.view',
+    'products.create',
+    'stock.create',
   ],
-  'plan': {'name': 'Premium', 'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones', 'estadisticas']},
+  'plan': {'name': 'Premium', 'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones', 'estadisticas', 'inventario']},
+};
+
+const _dashboard = {
+  'date': '2026-10-24',
+  'agenda': {
+    'total': 6,
+    'pending': 3,
+    'attended': 2,
+    'no_show': 1,
+    'cancelled': 0,
+    'next': [_cita],
+  },
+  'sales': {
+    'today': 320.0,
+    'count': 5,
+    'tips': 20.0,
+    'average': 64.0,
+    'yesterday': 250.0,
+    'week': {
+      'labels': ['Sá', 'Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi'],
+      'data': [180.0, 0.0, 210.0, 260.0, 190.0, 250.0, 320.0],
+    },
+  },
+  'cash': {'open': true, 'caja': 'Caja principal', 'opened_by': 'Lucía Recepción', 'expected_cash': 420.0, 'income': 320.0},
+  'stock': {
+    'low_count': 1,
+    'items': [
+      {'id': 20, 'name': 'CERA MATE', 'stock_label': '2 unidades'},
+    ],
+  },
+};
+
+const _turnoCerrado = {
+  'id': 3,
+  'status': 'cerrada',
+  'is_open': false,
+  'caja': {'id': 1, 'name': 'Caja principal'},
+  'opened_at': '2026-10-23T08:00:00-04:00',
+  'opened_by': 'Lucía Recepción',
+  'opening_amount': 100.0,
+  'duration': '10 h',
+  'totals': {'income': 80.0, 'expense': 0.0, 'cash_income': 80.0, 'cash_expense': 0.0, 'expected_cash': 180.0, 'net': 80.0},
+  'by_payment_method': {
+    'efectivo': {'income': 80.0, 'expense': 0.0, 'count': 1},
+  },
+  'movements_count': 1,
+  'closed_at': '2026-10-23T18:00:00-04:00',
+  'closed_by': 'Lucía Recepción',
+  'closing_amount': 175.0,
+  'expected_amount': 180.0,
+  'difference': -5.0,
+  'difference_label': 'Faltante',
+  'closing_notes': 'Faltó cambio',
+  'movements': [
+    {
+      'id': 1,
+      'type': 'ingreso',
+      'payment_method': 'efectivo',
+      'payment_method_label': 'Efectivo',
+      'concept': 'Venta V-0001',
+      'detail': 'CORTE CLÁSICO',
+      'amount': 80.0,
+      'reference': 'V-0001',
+      'created_at': '2026-10-23T10:00:00-04:00',
+      'created_by': 'Lucía Recepción',
+    },
+  ],
+};
+
+const _cera = {
+  'id': 20,
+  'name': 'CERA MATE',
+  'sku': 'CM-01',
+  'category_id': 1,
+  'category': 'Styling',
+  'unit': 'unidad',
+  'unit_label': 'Unidad',
+  'sale_price': 45.0,
+  'cost_price': 20.0,
+  'min_stock': 3.0,
+  'track_stock': true,
+  'is_sellable': true,
+  'active': true,
+  'stock': 2.0,
+  'stock_label': '2 unidades',
+  'low_stock': true,
+  'margin_percent': 55.6,
+  'stocks': [
+    {'warehouse_id': 1, 'warehouse': 'Central', 'quantity': 2.0, 'quantity_label': '2 unidades'},
+  ],
+  'movements': [
+    {
+      'id': 1,
+      'type': 'entrada',
+      'type_label': 'Entrada',
+      'reason_label': 'Compra a proveedor',
+      'quantity': 2.0,
+      'quantity_after': 2.0,
+      'warehouse': 'Central',
+      'created_by': 'Lucía Recepción',
+      'created_at': '2026-10-20T10:00:00-04:00',
+    },
+  ],
+};
+
+const _inventario = {
+  'low_count': 1,
+  'data': [_cera],
+};
+
+const _inventarioOpciones = {
+  'categories': [
+    {'id': 1, 'name': 'Styling'},
+  ],
+  'warehouses': [
+    {'id': 1, 'name': 'Central'},
+  ],
+  'units': [
+    {'value': 'unidad', 'label': 'Unidad'},
+    {'value': 'ml', 'label': 'Mililitros'},
+  ],
+  'types': [
+    {'value': 'entrada', 'label': 'Entrada'},
+    {'value': 'salida', 'label': 'Salida'},
+    {'value': 'ajuste', 'label': 'Ajuste'},
+  ],
+  'reasons': [
+    {'value': 'compra', 'label': 'Compra a proveedor'},
+    {'value': 'consumo', 'label': 'Consumo en servicio'},
+    {'value': 'merma', 'label': 'Merma o rotura'},
+  ],
+  'limit': {'reached': false},
+};
+
+const _ventas = {
+  'summary': {'count': 1, 'total': 70.0, 'tips': 0.0, 'cancelled': 0},
+  'data': [
+    {
+      'id': 7,
+      'number': 'V-0007',
+      'status': 'pagada',
+      'status_label': 'Pagada',
+      'total': 70.0,
+      'sold_at': '2026-10-22T10:30:00-04:00',
+      'client': 'CARLOS MENDOZA',
+      'personal': 'TANIA MOLINA',
+      'methods': ['Efectivo'],
+    },
+  ],
+};
+
+const _venta = {
+  'id': 7,
+  'number': 'V-0007',
+  'status': 'pagada',
+  'status_label': 'Pagada',
+  'sold_at': '2026-10-22T10:30:00-04:00',
+  'subtotal': 70.0,
+  'discount': 0.0,
+  'tip': 0.0,
+  'total': 70.0,
+  'client': {'id': 3, 'full_name': 'CARLOS MENDOZA'},
+  'personal': {'id': 3, 'full_name': 'TANIA MOLINA'},
+  'items': [
+    {'id': 1, 'type': 'servicio', 'description': 'CORTE CLÁSICO', 'quantity': 1.0, 'unit_price': 70.0, 'total': 70.0},
+  ],
+  'payments': [
+    {'payment_method': 'efectivo', 'payment_method_label': 'Efectivo', 'amount': 70.0, 'reference': null},
+  ],
+};
+
+const _bloqueos = {
+  'data': [
+    {
+      'id': 1,
+      'title': 'Vacaciones de Tania',
+      'reason': 'vacaciones',
+      'reason_label': 'Vacaciones',
+      'personal_id': 3,
+      'branch_id': null,
+      'branch': null,
+      'scope': 'TANIA MOLINA',
+      'all_day': true,
+      'starts_at': '2026-11-02T00:00:00-04:00',
+      'ends_at': '2026-11-06T23:59:59-04:00',
+      'range_label': '02/11/2026 – 06/11/2026',
+      'notes': null,
+    },
+  ],
+  'reasons': [
+    {'value': 'vacaciones', 'label': 'Vacaciones'},
+    {'value': 'feriado', 'label': 'Feriado'},
+    {'value': 'descanso', 'label': 'Descanso'},
+  ],
+  'staff': [
+    {'id': 3, 'full_name': 'TANIA MOLINA'},
+  ],
+  'branches': [
+    {'id': 1, 'name': 'Central'},
+  ],
 };
 
 const _emptyAgenda = {

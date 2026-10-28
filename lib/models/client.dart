@@ -11,6 +11,9 @@ class Client {
     this.documentNumber,
     this.preferences,
     this.allergies,
+    this.birthDate,
+    this.notes,
+    this.active = true,
   });
 
   final int id;
@@ -22,6 +25,11 @@ class Client {
   /// Corte habitual, máquina, largo… Útil tenerlo a mano al reservar.
   final String? preferences;
   final String? allergies;
+
+  /// Solo la fecha (sin hora): llega como `1995-03-14`.
+  final DateTime? birthDate;
+  final String? notes;
+  final bool active;
 
   String get initials {
     final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
@@ -38,6 +46,9 @@ class Client {
         documentNumber: json['document_number'] as String?,
         preferences: json['preferences'] as String?,
         allergies: json['allergies'] as String?,
+        birthDate: DateTime.tryParse(json['birth_date'] as String? ?? ''),
+        notes: json['notes'] as String?,
+        active: json['active'] as bool? ?? true,
       );
 }
 

@@ -38,7 +38,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
     });
 
     try {
-      final body = await context.read<ApiClient>().get('/services');
+      // Quien edita ve también los inactivos: si no, no podría reactivarlos.
+      final body = await context.read<ApiClient>().get(
+        '/services',
+        query: {if (_canEdit) 'all': 1},
+      );
 
       if (!mounted) return;
       setState(() => _services = (body['data'] as List? ?? [])
@@ -64,26 +68,41 @@ class _ServicesScreenState extends State<ServicesScreen> {
 
   bool get _canEdit => context.read<AuthController>().me?.can('services.edit') ?? false;
 
-  Future<void> _edit(Service service) async {
-    final updated = await Navigator.of(context).push<Service>(
+  /// Alta (sin [service]) o edición. Se recarga la lista al volver: el
+  /// servicio pudo cambiar de categoría, y con ello de grupo.
+  Future<void> _edit([Service? service]) async {
+    final saved = await Navigator.of(context).push<Service>(
       MaterialPageRoute(builder: (_) => ServiceEditScreen(service: service)),
     );
 
-    if (updated == null || !mounted) return;
-
-    // Se reemplaza en sitio para no recargar toda la lista.
-    setState(() {
-      final i = _services.indexWhere((s) => s.id == updated.id);
-      if (i >= 0) _services[i] = updated;
-    });
+    if (saved == null || !mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${updated.name} actualizado.')),
+      SnackBar(content: Text('${saved.name} ${service == null ? 'creado' : 'actualizado'}.')),
     );
+
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
+    final canCreate = context.watch<AuthController>().me?.can('services.create') ?? false;
+
+    return Scaffold(
+      floatingActionButton: canCreate && !_loading && _error == null
+          ? FloatingActionButton.extended(
+              onPressed: () => _edit(),
+              backgroundColor: BarboraTheme.copper,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo servicio', style: TextStyle(fontWeight: FontWeight.w700)),
+            )
+          : null,
+      body: _body(),
+    );
+  }
+
+  Widget _body() {
     final symbol = context.watch<AuthController>().company?.symbol ?? '';
 
     if (_loading) {
@@ -104,7 +123,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
             EmptyView(
               icon: Icons.design_services_outlined,
               title: 'Sin servicios',
-              subtitle: 'Crea los servicios desde el panel web y aparecerán aquí.',
+              subtitle: 'Agrega el primero con el botón de abajo.',
             ),
           ],
         ),
@@ -117,7 +136,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
       color: BarboraTheme.copper,
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
         children: [
           for (final entry in groups.entries) ...[
             Padding(

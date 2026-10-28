@@ -6,9 +6,11 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/client.dart';
+import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
 import 'client_detail_screen.dart';
+import 'client_edit_screen.dart';
 
 /// La sección de clientes: buscar y abrir su ficha.
 ///
@@ -81,8 +83,37 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
+  Future<void> _create() async {
+    final saved = await Navigator.of(context).push<Client>(
+      MaterialPageRoute(builder: (_) => const ClientEditScreen()),
+    );
+
+    if (saved == null || !mounted) return;
+
+    // Recién creado, lo natural es ver su ficha; la lista se refresca detrás.
+    _load(_search.text);
+    _openDetail(saved);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final canCreate = context.watch<AuthController>().me?.can('clients.create') ?? false;
+
+    return Scaffold(
+      floatingActionButton: canCreate
+          ? FloatingActionButton.extended(
+              onPressed: _create,
+              backgroundColor: BarboraTheme.copper,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Nuevo cliente', style: TextStyle(fontWeight: FontWeight.w700)),
+            )
+          : null,
+      body: _content(),
+    );
+  }
+
+  Widget _content() {
     return Column(
       children: [
         Padding(
@@ -144,7 +175,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
       color: BarboraTheme.copper,
       onRefresh: () => _load(_search.text),
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 90),
         itemCount: _clients.length,
         separatorBuilder: (_, _) => const SizedBox(height: 9),
         itemBuilder: (_, i) => _ClientRow(client: _clients[i], onTap: () => _openDetail(_clients[i])),

@@ -1,42 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../core/upper_case.dart';
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
+import '../core/upper_case.dart';
+import '../models/block_options.dart';
 import '../models/service.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 
-/// Editar un servicio desde el móvil: precio, duración, nombre, estado.
+/// Alta o edición de un servicio: nombre, categoría, precio, duración,
+/// descripción y estado.
 ///
-/// Devuelve el [Service] actualizado al guardar, o null si se canceló. Las
-/// reglas son las de la web; el servidor valida igual.
+/// Devuelve el [Service] guardado, o null si se canceló. Las reglas son las de
+/// la web (nombre único, duración entre 5 min y 10 h); el servidor valida igual.
 class ServiceEditScreen extends StatefulWidget {
-  const ServiceEditScreen({super.key, required this.service});
+  const ServiceEditScreen({super.key, this.service});
 
-  final Service service;
+  /// Null = alta; con valor = edición.
+  final Service? service;
+
+  bool get isEditing => service != null;
 
   @override
   State<ServiceEditScreen> createState() => _ServiceEditScreenState();
 }
 
 class _ServiceEditScreenState extends State<ServiceEditScreen> {
-  late final _name = TextEditingController(text: widget.service.name);
+  late final _name = TextEditingController(text: widget.service?.name ?? '');
   late final _price = TextEditingController(
-    text: widget.service.price.toStringAsFixed(2),
+    text: widget.service?.price.toStringAsFixed(2) ?? '',
   );
   late final _duration = TextEditingController(
-    text: '${widget.service.durationMinutes}',
+    text: widget.service == null ? '30' : '${widget.service!.durationMinutes}',
   );
   late final _description = TextEditingController(
-    text: widget.service.description ?? '',
+    text: widget.service?.description ?? '',
   );
-  late bool _active = widget.service.active;
+  late bool _active = widget.service?.active ?? true;
+  late int? _categoryId = widget.service?.categoryId;
+
+  List<Option> _categories = const [];
 
   bool _saving = false;
   String? _error;
   final _errors = <String, String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
 
   @override
   void dispose() {
@@ -47,6 +62,19 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
     super.dispose();
   }
 
+  /// Si no cargan, se puede guardar igual: la categoría es opcional.
+  Future<void> _loadCategories() async {
+    try {
+      final body = await context.read<ApiClient>().get('/service-categories');
+      if (!mounted) return;
+      setState(() => _categories = (body['data'] as List? ?? [])
+          .map((e) => Option((e as Map<String, dynamic>)['id'] as int, e['name'] as String))
+          .toList());
+    } on ApiException {
+      // Sin categorías no se rompe nada: el desplegable queda en «Sin categoría».
+    }
+  }
+
   Future<void> _save() async {
     setState(() {
       _saving = true;
@@ -54,29 +82,30 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
       _errors.clear();
     });
 
+    final payload = {
+      'name': upperName(_name.text),
+      'service_category_id': _categoryId,
+      'price': double.tryParse(_price.text.trim().replaceAll(',', '.')) ?? 0,
+      'duration_minutes': int.tryParse(_duration.text.trim()) ?? 0,
+      'description': _description.text.trim(),
+      'active': _active ? 1 : 0,
+    };
+
     try {
-      final body = await context.read<ApiClient>().put(
-        '/services/${widget.service.id}',
-        body: {
-          'name': upperName(_name.text),
-          'price': double.tryParse(_price.text.replaceAll(',', '.')) ?? 0,
-          'duration_minutes': int.tryParse(_duration.text.trim()) ?? 0,
-          'description': _description.text.trim(),
-          'active': _active ? 1 : 0,
-        },
-      );
+      final api = context.read<ApiClient>();
+      final body = widget.isEditing
+          ? await api.put('/services/${widget.service!.id}', body: payload)
+          : await api.post('/services', body: payload);
 
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pop(Service.fromJson(body['data'] as Map<String, dynamic>));
+      Navigator.of(context).pop(Service.fromJson(body['data'] as Map<String, dynamic>));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _errors
-          ..['name'] = e.firstErrorFor('name') ?? ''
-          ..['price'] = e.firstErrorFor('price') ?? ''
-          ..['duration_minutes'] = e.firstErrorFor('duration_minutes') ?? '';
+        for (final f in ['name', 'price', 'duration_minutes', 'service_category_id']) {
+          final msg = e.firstErrorFor(f);
+          if (msg != null) _errors[f] = msg;
+        }
         _error = e.errors.isEmpty ? e.message : null;
       });
     } finally {
@@ -87,12 +116,14 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
   @override
   Widget build(BuildContext context) {
     final symbol = context.watch<AuthController>().company?.symbol ?? '';
+    // Si la categoría del servicio ya no está activa, no se puede preseleccionar.
+    final categoryValue = _categories.any((c) => c.value == _categoryId) ? _categoryId : null;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: BarboraTheme.inkSoft,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Editar servicio'),
+        title: Text(widget.isEditing ? 'Editar servicio' : 'Nuevo servicio'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
@@ -101,12 +132,24 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             controller: _name,
             textCapitalization: TextCapitalization.characters,
             inputFormatters: const [UpperCaseFormatter()],
+            decoration: InputDecoration(labelText: 'Nombre', errorText: _errors['name']),
+          ),
+          const SizedBox(height: 14),
+
+          DropdownButtonFormField<int?>(
+            key: ValueKey('cat-${_categories.length}'),
+            initialValue: categoryValue,
+            isExpanded: true,
             decoration: InputDecoration(
-              labelText: 'Nombre',
-              errorText: _errors['name']?.isNotEmpty == true
-                  ? _errors['name']
-                  : null,
+              labelText: 'Categoría',
+              errorText: _errors['service_category_id'],
             ),
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('Sin categoría')),
+              for (final c in _categories)
+                DropdownMenuItem<int?>(value: c.value as int, child: Text(c.label)),
+            ],
+            onChanged: (v) => setState(() => _categoryId = v),
           ),
           const SizedBox(height: 14),
 
@@ -116,15 +159,12 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
               Expanded(
                 child: TextField(
                   controller: _price,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                   decoration: InputDecoration(
                     labelText: 'Precio',
                     prefixText: '$symbol ',
-                    errorText: _errors['price']?.isNotEmpty == true
-                        ? _errors['price']
-                        : null,
+                    errorText: _errors['price'],
                   ),
                 ),
               ),
@@ -133,11 +173,10 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
                 child: TextField(
                   controller: _duration,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: InputDecoration(
                     labelText: 'Duración (min)',
-                    errorText: _errors['duration_minutes']?.isNotEmpty == true
-                        ? _errors['duration_minutes']
-                        : null,
+                    errorText: _errors['duration_minutes'],
                   ),
                 ),
               ),
@@ -150,9 +189,7 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             minLines: 2,
             maxLines: 4,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Descripción (opcional)',
-            ),
+            decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
           ),
           const SizedBox(height: 8),
 
@@ -162,20 +199,12 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             activeThumbColor: BarboraTheme.copper,
             contentPadding: EdgeInsets.zero,
             title: const Text('Activo'),
-            subtitle: const Text(
-              'Un servicio inactivo no aparece al reservar ni al cobrar.',
-            ),
+            subtitle: const Text('Un servicio inactivo no aparece al reservar ni al cobrar.'),
           ),
 
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: const TextStyle(
-                color: BarboraTheme.copperDark,
-                fontSize: 13,
-              ),
-            ),
+            Text(_error!, style: const TextStyle(color: BarboraTheme.copperDark, fontSize: 13)),
           ],
 
           const SizedBox(height: 20),
@@ -185,13 +214,12 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: Colors.white,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                   )
                 : const Icon(Icons.save),
-            label: Text(_saving ? 'Guardando…' : 'Guardar cambios'),
+            label: Text(_saving
+                ? 'Guardando…'
+                : (widget.isEditing ? 'Guardar cambios' : 'Crear servicio')),
           ),
         ],
       ),

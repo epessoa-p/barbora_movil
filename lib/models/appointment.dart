@@ -161,9 +161,13 @@ class AgendaBlock {
     required this.reasonLabel,
     required this.scope,
     this.personalId,
+    this.branchId,
+    this.branch,
     this.allDay = false,
     required this.startsAt,
     required this.endsAt,
+    this.rangeLabel,
+    this.notes,
   });
 
   final int id;
@@ -174,9 +178,17 @@ class AgendaBlock {
   /// A quién afecta: el nombre del barbero, o «Toda la barbería».
   final String scope;
   final int? personalId;
+
+  /// Sucursal a la que se limita (null = todas). Solo llega en `/agenda-blocks`.
+  final int? branchId;
+  final String? branch;
   final bool allDay;
   final DateTime startsAt;
   final DateTime endsAt;
+
+  /// «12/10/2026 – 15/10/2026», ya formateado por el servidor.
+  final String? rangeLabel;
+  final String? notes;
 
   bool get isCompanyWide => personalId == null;
 
@@ -187,8 +199,12 @@ class AgendaBlock {
         reasonLabel: json['reason_label'] as String? ?? '',
         scope: json['scope'] as String? ?? '',
         personalId: json['personal_id'] as int?,
+        branchId: json['branch_id'] as int?,
+        branch: json['branch'] as String?,
         allDay: json['all_day'] as bool? ?? false,
         startsAt: ShopTime.parse(json['starts_at'] as String),
         endsAt: ShopTime.parse(json['ends_at'] as String),
+        rangeLabel: json['range_label'] as String?,
+        notes: json['notes'] as String?,
       );
 }

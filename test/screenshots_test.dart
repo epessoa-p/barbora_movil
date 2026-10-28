@@ -549,6 +549,500 @@ void main() {
         });
   });
 
+  final meBloqueos = <String, Object>{
+    ..._meCompleto,
+    'permissions': [
+      ...(_meCompleto['permissions']! as List),
+      'agenda_blocks.view',
+      'agenda_blocks.create',
+      'agenda_blocks.edit',
+      'agenda_blocks.delete',
+    ],
+  };
+
+  const bloqueos = {
+    'data': [
+      {
+        'id': 1,
+        'title': 'Año nuevo',
+        'reason': 'feriado',
+        'reason_label': 'Feriado',
+        'personal_id': null,
+        'scope': 'Toda la barbería',
+        'all_day': true,
+        'starts_at': '2027-01-01T00:00:00-04:00',
+        'ends_at': '2027-01-01T23:59:59-04:00',
+        'range_label': '01/01/2027 · todo el día',
+      },
+      {
+        'id': 2,
+        'title': 'Vacaciones de Tania',
+        'reason': 'vacaciones',
+        'reason_label': 'Vacaciones',
+        'personal_id': 3,
+        'scope': 'Tania Molina',
+        'all_day': true,
+        'starts_at': '2026-11-02T00:00:00-04:00',
+        'ends_at': '2026-11-15T23:59:59-04:00',
+        'range_label': '02/11/2026 – 15/11/2026',
+      },
+      {
+        'id': 3,
+        'title': 'Almuerzo',
+        'reason': 'descanso',
+        'reason_label': 'Descanso',
+        'personal_id': 5,
+        'scope': 'Diego Rojas',
+        'all_day': false,
+        'starts_at': '2026-10-24T13:00:00-04:00',
+        'ends_at': '2026-10-24T14:00:00-04:00',
+        'range_label': '24/10/2026 13:00 – 14:00',
+      },
+    ],
+    'reasons': [
+      {'value': 'vacaciones', 'label': 'Vacaciones'},
+      {'value': 'feriado', 'label': 'Feriado'},
+      {'value': 'descanso', 'label': 'Descanso'},
+      {'value': 'permiso', 'label': 'Permiso'},
+      {'value': 'otro', 'label': 'Otro'},
+    ],
+    'staff': [
+      {'id': 3, 'full_name': 'Tania Molina'},
+      {'id': 5, 'full_name': 'Diego Rojas'},
+    ],
+    'branches': [
+      {'id': 1, 'name': 'Central'},
+    ],
+  };
+
+  testWidgets('18 bloqueos', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '18_bloqueos',
+        session: s,
+        routes: {'/me': meBloqueos, '/my/agenda': _agenda, '/agenda': _agenda, '/agenda-blocks': bloqueos},
+        afterLoad: (t) async {
+          await openSection(t, 'Bloqueos');
+        });
+  });
+
+  testWidgets('19 nuevo bloqueo', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '19_nuevo_bloqueo',
+        session: s,
+        routes: {'/me': meBloqueos, '/my/agenda': _agenda, '/agenda': _agenda, '/agenda-blocks': bloqueos},
+        afterLoad: (t) async {
+          await openSection(t, 'Bloqueos');
+          await t.tap(find.text('Nuevo bloqueo'));
+          await t.pumpAndSettle();
+          await t.enterText(find.widgetWithText(TextField, 'Nombre'), 'Almuerzo');
+          await t.tap(find.text('Todo el día'));
+        });
+  });
+
+  final meVentas = <String, Object>{
+    ..._meCompleto,
+    'permissions': [
+      ...(_meCompleto['permissions']! as List),
+      'sales.view',
+      'sales.delete',
+    ],
+  };
+
+  Map<String, Object?> fila(int id, String hora, String cliente, String barbero, double total,
+          {String status = 'pagada', List<String> methods = const ['Efectivo']}) =>
+      {
+        'id': id,
+        'number': 'V-${id.toString().padLeft(4, '0')}',
+        'status': status,
+        'total': total,
+        'sold_at': '2026-10-22T$hora:00-04:00',
+        'client': cliente,
+        'personal': barbero,
+        'methods': methods,
+      };
+
+  final ventas = {
+    'summary': {'count': 4, 'total': 285.0, 'tips': 15.0, 'cancelled': 1},
+    'data': [
+      fila(41, '17:40', 'CARLOS MENDOZA', 'TANIA MOLINA', 85.0, methods: ['QR']),
+      fila(40, '16:05', 'LUIS VARGAS', 'DIEGO ROJAS', 50.0),
+      fila(39, '12:20', 'ANDRÉS ROJAS', 'TANIA MOLINA', 50.0, status: 'anulada'),
+      fila(38, '11:10', 'PEDRO QUIROGA', 'DIEGO ROJAS', 70.0, methods: ['Efectivo', 'Tarjeta']),
+      fila(37, '09:30', 'MARCO SALAZAR', 'TANIA MOLINA', 80.0),
+    ],
+  };
+
+  testWidgets('20 ventas', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '20_ventas',
+        session: s,
+        routes: {'/me': meVentas, '/my/agenda': _agenda, '/agenda': _agenda, '/sales': ventas},
+        afterLoad: (t) async {
+          await openSection(t, 'Ventas');
+        });
+  });
+
+  testWidgets('21 venta anulada', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '21_venta_anulada',
+        session: s,
+        routes: {
+          '/me': meVentas,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/sales': ventas,
+          '/sales/39': {
+            'data': {
+              'id': 39,
+              'number': 'V-0039',
+              'status': 'anulada',
+              'status_label': 'Anulada',
+              'sold_at': '2026-10-22T12:20:00-04:00',
+              'cancel_reason': 'Se cobró dos veces',
+              'cancelled_at': '2026-10-22T12:35:00-04:00',
+              'cancelled_by': 'Lucía Recepción',
+              'subtotal': 50.0,
+              'discount': 0.0,
+              'tip': 0.0,
+              'total': 50.0,
+              'client': {'id': 4, 'full_name': 'ANDRÉS ROJAS'},
+              'personal': {'id': 3, 'full_name': 'TANIA MOLINA'},
+              'items': [
+                {'id': 1, 'type': 'servicio', 'description': 'CORTE CLÁSICO', 'quantity': 1.0, 'unit_price': 50.0, 'total': 50.0},
+              ],
+              'payments': [
+                {'payment_method': 'efectivo', 'payment_method_label': 'Efectivo', 'amount': 50.0},
+              ],
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Ventas');
+          await t.tap(find.text('V-0039'));
+          await t.pumpAndSettle();
+          await t.drag(find.byType(ListView).last, const Offset(0, -500));
+        });
+  });
+
+  testWidgets('22 editar cliente', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '22_editar_cliente',
+        session: s,
+        routes: {
+          '/me': <String, Object>{
+            ..._meCompleto,
+            'permissions': [...(_meCompleto['permissions']! as List), 'clients.edit'],
+          },
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/clients': {
+            'data': [
+              {'id': 3, 'full_name': 'CARLOS MENDOZA', 'phone': '71234567'},
+            ],
+          },
+          '/clients/3': {
+            'data': {
+              'id': 3,
+              'full_name': 'CARLOS MENDOZA',
+              'phone': '71234567',
+              'email': 'carlos@correo.test',
+              'document_number': '9876543',
+              'birth_date': '1994-05-17',
+              'preferences': 'Degradado bajo, máquina 1. Sin cera.',
+              'allergies': 'Alcohol en lociones',
+              'notes': 'Prefiere los sábados por la mañana.',
+              'active': true,
+              'stats': {'visits': 8, 'total_spent': 540.0, 'upcoming': 0},
+              'recent_appointments': <Object>[],
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Clientes');
+          await t.tap(find.text('CARLOS MENDOZA').first);
+          await t.pumpAndSettle();
+          await t.tap(find.byTooltip('Editar'));
+        });
+  });
+
+  final meInventario = <String, Object>{
+    ..._meCompleto,
+    'permissions': [
+      ...(_meCompleto['permissions']! as List),
+      'products.view',
+      'products.create',
+      'products.edit',
+      'stock.create',
+    ],
+    'plan': {
+      'name': 'Premium',
+      'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones', 'estadisticas', 'inventario'],
+    },
+  };
+
+  Map<String, Object?> producto(int id, String nombre, String categoria, double precio, double stock,
+          {double minimo = 3, bool vende = true, String unidad = 'unidad', String unidadLabel = 'Unidad'}) =>
+      {
+        'id': id,
+        'name': nombre,
+        'category': categoria,
+        'unit': unidad,
+        'unit_label': unidadLabel,
+        'sale_price': precio,
+        'cost_price': precio / 2,
+        'min_stock': minimo,
+        'track_stock': true,
+        'is_sellable': vende,
+        'active': true,
+        'stock': stock,
+        'stock_label': '${stock.toStringAsFixed(0)} ${unidad == 'unidad' ? 'unidades' : unidad}',
+        'low_stock': stock <= minimo,
+      };
+
+  final inventario = {
+    'low_count': 2,
+    'data': [
+      producto(20, 'ACEITE PARA BARBA', 'Barba', 60, 8),
+      producto(21, 'CERA MATE', 'Styling', 45, 2),
+      producto(22, 'GEL FIJADOR', 'Styling', 35, 14),
+      producto(23, 'HOJAS DE AFEITAR', 'Insumos', 2, 40, minimo: 50, vende: false),
+      producto(24, 'SHAMPOO ANTICASPA', 'Cuidado', 55, 6),
+      producto(25, 'TALCO', 'Insumos', 15, 900, minimo: 200, vende: false, unidad: 'gr', unidadLabel: 'Gramos'),
+    ],
+  };
+
+  const opcionesInventario = {
+    'categories': [
+      {'id': 1, 'name': 'Styling'},
+    ],
+    'warehouses': [
+      {'id': 1, 'name': 'Central'},
+    ],
+    'units': [
+      {'value': 'unidad', 'label': 'Unidad'},
+    ],
+    'reasons': [
+      {'value': 'compra', 'label': 'Compra a proveedor'},
+    ],
+    'limit': {'reached': false},
+  };
+
+  testWidgets('23 inventario', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '23_inventario',
+        session: s,
+        routes: {
+          '/me': meInventario,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/inventory/products': inventario,
+          '/inventory/options': opcionesInventario,
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Inventario');
+        });
+  });
+
+  testWidgets('24 ficha de producto', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    Map<String, Object?> mov(int id, String type, String label, String? reason, double qty, double after, String when) => {
+          'id': id,
+          'type': type,
+          'type_label': label,
+          'reason_label': reason,
+          'quantity': qty,
+          'quantity_after': after,
+          'warehouse': 'Central',
+          'created_by': 'Tania Molina',
+          'created_at': '2026-10-$when:00-04:00',
+        };
+
+    await shoot(tester, '24_ficha_producto',
+        session: s,
+        routes: {
+          '/me': meInventario,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/inventory/products': inventario,
+          '/inventory/options': opcionesInventario,
+          '/inventory/products/21': {
+            'data': {
+              ...producto(21, 'CERA MATE', 'Styling', 45, 2),
+              'sku': 'CM-01',
+              'margin_percent': 50.0,
+              'stocks': [
+                {'warehouse_id': 1, 'warehouse': 'Central', 'quantity': 2.0, 'quantity_label': '2 unidades'},
+              ],
+              'movements': [
+                mov(4, 'salida', 'Salida', 'Venta', -3, 2, '23T17:40'),
+                mov(3, 'salida', 'Salida', 'Venta', -1, 5, '22T11:10'),
+                mov(2, 'ajuste', 'Ajuste', 'Recuento físico', -1, 6, '20T09:00'),
+                mov(1, 'entrada', 'Entrada', 'Compra a proveedor', 7, 7, '15T10:30'),
+              ],
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Inventario');
+          await t.tap(find.text('CERA MATE'));
+        });
+  });
+
+  Map<String, Object?> turno(int id, String dia, double esperado, double contado, String label,
+          {double ingresos = 0, int movs = 0, String? notas}) =>
+      {
+        'id': id,
+        'status': 'cerrada',
+        'is_open': false,
+        'caja': {'id': 1, 'name': 'Caja principal'},
+        'opened_at': '2026-10-${dia}T08:30:00-04:00',
+        'opened_by': 'Tania Molina',
+        'opening_amount': 100.0,
+        'duration': '10 h 15 min',
+        'totals': {
+          'income': ingresos,
+          'expense': 40.0,
+          'cash_income': esperado - 60,
+          'cash_expense': 40.0,
+          'expected_cash': esperado,
+          'net': ingresos - 40,
+        },
+        'by_payment_method': {
+          'efectivo': {'income': esperado - 60, 'expense': 40.0, 'count': movs - 2, 'label': 'Efectivo'},
+          'qr': {'income': ingresos - (esperado - 60), 'expense': 0.0, 'count': 2, 'label': 'QR'},
+        },
+        'movements_count': movs,
+        'closed_at': '2026-10-${dia}T18:45:00-04:00',
+        'closed_by': 'Tania Molina',
+        'closing_amount': contado,
+        'expected_amount': esperado,
+        'difference': contado - esperado,
+        'difference_label': label,
+        'closing_notes': notas,
+      };
+
+  final turnos = {
+    'data': [
+      turno(12, '23', 640, 640, 'Cuadrada', ingresos: 780, movs: 14),
+      turno(11, '22', 515, 505, 'Faltante', ingresos: 610, movs: 11, notas: 'Faltó dar cambio a un cliente.'),
+      turno(10, '21', 720, 730, 'Sobrante', ingresos: 845, movs: 16),
+      turno(9, '20', 430, 430, 'Cuadrada', ingresos: 505, movs: 9),
+    ],
+  };
+
+  testWidgets('25 turnos de caja', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '25_turnos_caja',
+        session: s,
+        routes: {
+          '/me': _meCajero,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/cash/session': _cashSession,
+          '/cash/sessions': turnos,
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Caja');
+          await t.dragUntilVisible(find.text('Turnos anteriores'), find.byType(ListView).last, const Offset(0, -300));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Turnos anteriores'));
+        });
+  });
+
+  testWidgets('26 detalle de turno', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '26_detalle_turno',
+        session: s,
+        routes: {
+          '/me': _meCajero,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/cash/session': _cashSession,
+          '/cash/sessions': turnos,
+          '/cash/sessions/11': {
+            'data': {
+              ...turno(11, '22', 515, 505, 'Faltante', ingresos: 610, movs: 11, notas: 'Faltó dar cambio a un cliente.'),
+              'movements': (_cashSession['data']! as Map)['movements'],
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Caja');
+          await t.dragUntilVisible(find.text('Turnos anteriores'), find.byType(ListView).last, const Offset(0, -300));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Turnos anteriores'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Faltante'));
+        });
+  });
+
+  testWidgets('00 inicio del jefe', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    final citas = (_agenda['data']! as List).cast<Map<String, Object?>>();
+
+    await shoot(tester, '00_inicio',
+        session: s,
+        routes: {
+          '/me': <String, Object>{
+            ...meInventario,
+            'permissions': [
+              ...(meInventario['permissions']! as List),
+              'dashboard.view',
+              'sales.view',
+              'appointments.create',
+            ],
+          },
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/dashboard': {
+            'date': '2026-10-24',
+            'agenda': {
+              'total': 9,
+              'pending': 4,
+              'attended': 4,
+              'no_show': 1,
+              'cancelled': 0,
+              'next': [citas[0], citas[2]],
+            },
+            'sales': {
+              'today': 640.0,
+              'count': 9,
+              'tips': 35.0,
+              'average': 71.11,
+              'yesterday': 515.0,
+              'week': {
+                'labels': ['Sá', 'Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi'],
+                'data': [705.0, 0.0, 430.0, 505.0, 845.0, 610.0, 640.0],
+              },
+            },
+            'cash': {
+              'open': true,
+              'caja': 'Caja principal',
+              'opened_by': 'Tania Molina',
+              'expected_cash': 520.0,
+              'income': 640.0,
+            },
+            'stock': {
+              'low_count': 2,
+              'items': [
+                {'id': 21, 'name': 'CERA MATE', 'stock_label': '2 unidades'},
+                {'id': 23, 'name': 'HOJAS DE AFEITAR', 'stock_label': '40 unidades'},
+              ],
+            },
+          },
+        });
+  });
+
   testWidgets('07 detalle de cita', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 

@@ -22,6 +22,9 @@ class CashSession {
     this.expectedAmount,
     this.difference,
     this.differenceLabel,
+    this.openingNotes,
+    this.closingNotes,
+    this.byMethod = const {},
   });
 
   final int id;
@@ -44,6 +47,12 @@ class CashSession {
   final double? expectedAmount;
   final double? difference;
   final String? differenceLabel;
+
+  final String? openingNotes;
+  final String? closingNotes;
+
+  /// Desglose por forma de pago (slug → totales).
+  final Map<String, MethodTotal> byMethod;
 
   /// ¿Sobró, faltó o cuadró? Null mientras el turno sigue abierto.
   bool? get isShort => difference == null ? null : difference! < -0.005;
@@ -73,8 +82,35 @@ class CashSession {
       expectedAmount: (json['expected_amount'] as num?)?.toDouble(),
       difference: (json['difference'] as num?)?.toDouble(),
       differenceLabel: json['difference_label'] as String?,
+      openingNotes: json['opening_notes'] as String?,
+      closingNotes: json['closing_notes'] as String?,
+      // Llega como {slug: {income, expense, count}}; un array vacío si no hay.
+      byMethod: json['by_payment_method'] is Map
+          ? (json['by_payment_method'] as Map).map(
+              (k, v) => MapEntry(k as String, MethodTotal.fromJson(v as Map<String, dynamic>)),
+            )
+          : const {},
     );
   }
+}
+
+/// Lo que entró y salió por una forma de pago en el turno.
+class MethodTotal {
+  const MethodTotal({this.income = 0, this.expense = 0, this.count = 0, this.label});
+
+  final double income;
+  final double expense;
+  final int count;
+
+  /// Nombre de la forma de pago («Efectivo», «QR»).
+  final String? label;
+
+  factory MethodTotal.fromJson(Map<String, dynamic> json) => MethodTotal(
+        income: (json['income'] as num?)?.toDouble() ?? 0,
+        expense: (json['expense'] as num?)?.toDouble() ?? 0,
+        count: json['count'] as int? ?? 0,
+        label: json['label'] as String?,
+      );
 }
 
 class CashTotals {

@@ -10,6 +10,7 @@ import '../theme/barbora_theme.dart';
 import '../widgets/appointment_tile.dart';
 import '../widgets/error_view.dart';
 import 'appointment_detail_screen.dart';
+import 'client_edit_screen.dart';
 
 /// La ficha del cliente: quién es, lo que la barbería sabe de él y su historia.
 ///
@@ -58,16 +59,41 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final symbol = context.watch<AuthController>().company?.symbol ?? '';
+    final auth = context.watch<AuthController>();
+    final symbol = auth.company?.symbol ?? '';
+    final canEdit = auth.me?.can('clients.edit') ?? false;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: BarboraTheme.inkSoft,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text('Ficha del cliente'),
+        actions: [
+          if (canEdit && _detail != null)
+            IconButton(
+              tooltip: 'Editar',
+              icon: const Icon(Icons.edit_outlined, color: Colors.white),
+              onPressed: _edit,
+            ),
+        ],
       ),
       body: _body(symbol),
     );
+  }
+
+  Future<void> _edit() async {
+    final saved = await Navigator.of(context).push<Client>(
+      MaterialPageRoute(builder: (_) => ClientEditScreen(client: _detail!.client)),
+    );
+
+    if (saved == null || !mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${saved.fullName} guardado.')),
+    );
+
+    // Se recarga entera: el resumen y las citas vienen con la ficha.
+    _load();
   }
 
   Widget _body(String symbol) {
@@ -107,7 +133,16 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             ),
           ],
 
-          if (c.phone != null || c.email != null || c.documentNumber != null) ...[
+          if (c.notes != null && c.notes!.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _NoteCard(
+              icon: Icons.sticky_note_2_outlined,
+              title: 'Notas',
+              text: c.notes!,
+            ),
+          ],
+
+          if (c.phone != null || c.email != null || c.documentNumber != null || c.birthDate != null) ...[
             const SizedBox(height: 14),
             _ContactCard(client: c),
           ],
@@ -368,15 +403,29 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final birth = client.birthDate;
+    final rows = [
+      if (client.phone != null)
+        _ContactRow(icon: Icons.phone_outlined, label: 'Teléfono', value: client.phone!),
+      if (client.email != null)
+        _ContactRow(icon: Icons.mail_outline, label: 'Correo', value: client.email!),
+      if (client.documentNumber != null)
+        _ContactRow(icon: Icons.badge_outlined, label: 'Documento', value: client.documentNumber!),
+      if (birth != null)
+        _ContactRow(
+          icon: Icons.cake_outlined,
+          label: 'Cumpleaños',
+          value: DateFormat("d 'de' MMMM", 'es').format(birth),
+        ),
+    ];
+
     return Card(
       child: Column(
         children: [
-          if (client.phone != null)
-            _ContactRow(icon: Icons.phone_outlined, label: 'Teléfono', value: client.phone!),
-          if (client.phone != null && client.email != null)
-            const Divider(height: 1, indent: 16, endIndent: 16),
-          if (client.email != null)
-            _ContactRow(icon: Icons.mail_outline, label: 'Correo', value: client.email!),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+            rows[i],
+          ],
         ],
       ),
     );

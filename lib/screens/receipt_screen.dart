@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/api_client.dart';
+import '../core/api_exception.dart';
 import '../models/company.dart';
 import '../models/sale.dart';
 import '../state/auth_controller.dart';
@@ -13,16 +15,67 @@ import '../theme/barbora_theme.dart';
 /// No se imprime: un barbero no lleva impresora en el bolsillo. Se ve en
 /// pantalla y se puede copiar como texto para mandarlo por WhatsApp, que es lo
 /// que se hace de verdad en una barbería.
-class ReceiptScreen extends StatelessWidget {
-  const ReceiptScreen({super.key, required this.sale});
+///
+/// Desde el historial de ventas también se anula, si se tiene permiso.
+class ReceiptScreen extends StatefulWidget {
+  const ReceiptScreen({super.key, required this.sale, this.allowCancel = false});
 
   final Sale sale;
+
+  /// Ofrecer «Anular venta» (desde el historial; no justo después de cobrar).
+  final bool allowCancel;
+
+  @override
+  State<ReceiptScreen> createState() => _ReceiptScreenState();
+}
+
+class _ReceiptScreenState extends State<ReceiptScreen> {
+  late Sale sale = widget.sale;
+  bool _cancelling = false;
+
+  Future<void> _cancel() async {
+    // Null = se volvió atrás; cadena (quizá vacía) = se confirmó.
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _CancelDialog(number: sale.number),
+    );
+
+    if (text == null || !mounted) return;
+
+    setState(() => _cancelling = true);
+
+    try {
+      final res = await context.read<ApiClient>().patch(
+        '/sales/${sale.id}/cancel',
+        body: {if (text.isNotEmpty) 'cancel_reason': text},
+      );
+      if (!mounted) return;
+
+      setState(() => sale = Sale.fromJson(res['data'] as Map<String, dynamic>));
+
+      final message = res['message'] as String? ?? 'Venta anulada.';
+      final warn = (res['settled_commissions'] as int? ?? 0) > 0;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: warn ? 8 : 4),
+        backgroundColor: warn ? const Color(0xFF92400E) : null,
+      ));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final company = auth.company;
     final symbol = company?.symbol ?? '';
+    final cancelled = sale.isCancelled;
+    final canCancel = widget.allowCancel && !cancelled && (auth.me?.can('sales.delete') ?? false);
+    final statusColor = cancelled ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
 
     return Scaffold(
       appBar: AppBar(
@@ -31,11 +84,12 @@ class ReceiptScreen extends StatelessWidget {
         ),
         title: const Text('Comprobante'),
         actions: [
-          IconButton(
-            tooltip: 'Copiar',
-            icon: const Icon(Icons.copy_all_outlined),
-            onPressed: () => _copy(context, company, symbol),
-          ),
+          if (!cancelled)
+            IconButton(
+              tooltip: 'Copiar',
+              icon: const Icon(Icons.copy_all_outlined),
+              onPressed: () => _copy(context, company, symbol),
+            ),
         ],
       ),
       body: ListView(
@@ -58,24 +112,36 @@ class ReceiptScreen extends StatelessWidget {
                   width: 54,
                   height: 54,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF16A34A).withValues(alpha: .12),
+                    color: statusColor.withValues(alpha: .12),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Color(0xFF16A34A),
+                  child: Icon(
+                    cancelled ? Icons.block : Icons.check,
+                    color: statusColor,
                     size: 30,
                   ),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   '$symbol ${sale.total.toStringAsFixed(2)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -1.2,
+                    decoration: cancelled ? TextDecoration.lineThrough : null,
+                    color: cancelled ? BarboraTheme.textMuted : null,
                   ),
                 ),
+                if (cancelled)
+                  const Text(
+                    'ANULADA',
+                    style: TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                      fontSize: 12.5,
+                    ),
+                  ),
                 const SizedBox(height: 2),
                 Text(
                   sale.number,
@@ -152,12 +218,44 @@ class ReceiptScreen extends StatelessWidget {
             ),
           ],
 
+          if (cancelled) ...[
+            const SizedBox(height: 12),
+            _Block(
+              title: 'Anulación',
+              children: [
+                if (sale.cancelledAt != null)
+                  _Row(
+                    label: 'Fecha',
+                    value: DateFormat("d 'de' MMMM, HH:mm", 'es').format(sale.cancelledAt!),
+                  ),
+                if (sale.cancelledBy != null) _Row(label: 'Anuló', value: sale.cancelledBy!),
+                _Row(label: 'Motivo', value: sale.cancelReason ?? 'Sin motivo'),
+              ],
+            ),
+          ],
+
           const SizedBox(height: 22),
-          OutlinedButton.icon(
-            onPressed: () => _copy(context, company, symbol),
-            icon: const Icon(Icons.copy_all_outlined, size: 19),
-            label: const Text('Copiar para enviar'),
-          ),
+          if (!cancelled)
+            OutlinedButton.icon(
+              onPressed: () => _copy(context, company, symbol),
+              icon: const Icon(Icons.copy_all_outlined, size: 19),
+              label: const Text('Copiar para enviar'),
+            ),
+          if (canCancel) ...[
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: _cancelling ? null : _cancel,
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+              icon: _cancelling
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFDC2626)),
+                    )
+                  : const Icon(Icons.block, size: 19),
+              label: const Text('Anular venta'),
+            ),
+          ],
         ],
       ),
     );
@@ -198,6 +296,60 @@ class ReceiptScreen extends StatelessWidget {
   static String _number(double value) => value == value.roundToDouble()
       ? value.toStringAsFixed(0)
       : value.toStringAsFixed(2);
+}
+
+/// Confirmación de anulación, con el motivo. Devuelve el motivo (vacío si no
+/// se puso) o null si se cancela. Es un widget propio para que el campo de
+/// texto viva y muera con el diálogo, animación de cierre incluida.
+class _CancelDialog extends StatefulWidget {
+  const _CancelDialog({required this.number});
+
+  final String number;
+
+  @override
+  State<_CancelDialog> createState() => _CancelDialogState();
+}
+
+class _CancelDialogState extends State<_CancelDialog> {
+  final _reason = TextEditingController();
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('¿Anular la venta ${widget.number}?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Se devuelve el stock, se registra la salida del dinero en la caja '
+            'abierta y se quitan las comisiones pendientes.',
+            style: TextStyle(fontSize: 13.5),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _reason,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(labelText: 'Motivo (opcional)'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Volver')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+          onPressed: () => Navigator.pop(context, _reason.text.trim()),
+          child: const Text('Anular'),
+        ),
+      ],
+    );
+  }
 }
 
 /// Encabezado con los datos de la barbería: logo, nombre, NIT y dirección.

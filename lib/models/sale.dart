@@ -18,6 +18,10 @@ class Sale {
     this.appointmentId,
     this.items = const [],
     this.payments = const [],
+    this.statusLabel,
+    this.cancelReason,
+    this.cancelledAt,
+    this.cancelledBy,
   });
 
   final int id;
@@ -35,6 +39,13 @@ class Sale {
   final int? appointmentId;
   final List<SaleItem> items;
   final List<SalePayment> payments;
+
+  final String? statusLabel;
+
+  /// Solo en las anuladas: por qué, cuándo y quién.
+  final String? cancelReason;
+  final DateTime? cancelledAt;
+  final String? cancelledBy;
 
   bool get isCancelled => status == 'anulada';
 
@@ -64,8 +75,67 @@ class Sale {
               ?.map((e) => SalePayment.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      statusLabel: json['status_label'] as String?,
+      cancelReason: json['cancel_reason'] as String?,
+      cancelledAt: ShopTime.tryParse(json['cancelled_at'] as String?),
+      cancelledBy: json['cancelled_by'] as String?,
     );
   }
+}
+
+/// Una fila del historial (`GET /sales`): lo justo para la lista.
+class SaleRow {
+  const SaleRow({
+    required this.id,
+    required this.number,
+    required this.status,
+    required this.total,
+    required this.soldAt,
+    this.client,
+    this.personal,
+    this.methods = const [],
+  });
+
+  final int id;
+  final String number;
+  final String status;
+  final double total;
+  final DateTime soldAt;
+  final String? client;
+  final String? personal;
+
+  /// Cómo se pagó: «Efectivo», «QR»…
+  final List<String> methods;
+
+  bool get isCancelled => status == 'anulada';
+
+  factory SaleRow.fromJson(Map<String, dynamic> json) => SaleRow(
+        id: json['id'] as int,
+        number: json['number'] as String? ?? '',
+        status: json['status'] as String? ?? '',
+        total: (json['total'] as num?)?.toDouble() ?? 0,
+        soldAt: ShopTime.parse(json['sold_at'] as String),
+        client: json['client'] as String?,
+        personal: json['personal'] as String?,
+        methods: (json['methods'] as List? ?? []).cast<String>(),
+      );
+}
+
+/// Totales del periodo: lo cobrado no incluye las anuladas.
+class SalesSummary {
+  const SalesSummary({this.count = 0, this.total = 0, this.tips = 0, this.cancelled = 0});
+
+  final int count;
+  final double total;
+  final double tips;
+  final int cancelled;
+
+  factory SalesSummary.fromJson(Map<String, dynamic> json) => SalesSummary(
+        count: json['count'] as int? ?? 0,
+        total: (json['total'] as num?)?.toDouble() ?? 0,
+        tips: (json['tips'] as num?)?.toDouble() ?? 0,
+        cancelled: json['cancelled'] as int? ?? 0,
+      );
 }
 
 class SaleItem {

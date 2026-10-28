@@ -7,6 +7,7 @@ class Service {
     required this.price,
     this.description,
     this.category,
+    this.categoryId,
     this.active = true,
   });
 
@@ -16,6 +17,7 @@ class Service {
   final double price;
   final String? description;
   final String? category;
+  final int? categoryId;
   final bool active;
 
   factory Service.fromJson(Map<String, dynamic> json) => Service(
@@ -25,6 +27,7 @@ class Service {
         price: (json['price'] as num?)?.toDouble() ?? 0,
         description: json['description'] as String?,
         category: json['category'] as String?,
+        categoryId: json['category_id'] as int?,
         active: json['active'] as bool? ?? true,
       );
 }

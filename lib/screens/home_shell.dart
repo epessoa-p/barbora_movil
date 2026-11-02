@@ -16,6 +16,7 @@ import 'blocks_screen.dart';
 import 'cash_screen.dart';
 import 'checkout_screen.dart';
 import 'clients_screen.dart';
+import 'finance_hub_screen.dart';
 import 'home_screen.dart';
 import 'inventory_screen.dart';
 import 'commissions_screen.dart';
@@ -70,6 +71,25 @@ class AppMenu {
   /// Productos y existencias: entradas, salidas, ajustes.
   bool get inventory => _allows('inventario', 'products.view');
 
+  // ── Finanzas (módulo «finanzas») ───────────────────────────────────────
+  bool get expenses => _allows('finanzas', 'expenses.view');
+
+  bool get accounts => _allows('finanzas', 'accounts.view');
+
+  bool get expenseCategories => _allows('finanzas', 'expense_categories.view');
+
+  /// La sección: con cualquiera de sus pestañas.
+  bool get finance => expenses || accounts || expenseCategories;
+
+  // ── Compras (módulo «inventario»; proveedores también con «finanzas») ──
+  bool get purchases => _allows('inventario', 'purchases.view');
+
+  bool get suppliers =>
+      (me?.can('suppliers.view') ?? false) &&
+      ((me?.hasModule('inventario') ?? false) || (me?.hasModule('finanzas') ?? false));
+
+  bool get purchasesSection => purchases || suppliers;
+
   // ── Administración ──────────────────────────────────────────────────────
   // No son secciones del menú: son los cuadros de la pantalla
   // «Administración», que se abre desde abajo del menú lateral.
@@ -117,6 +137,8 @@ class AppMenu {
         if (inventory) Section.inventory,
         if (cash) Section.cash,
         if (sales) Section.sales,
+        if (purchasesSection) Section.purchases,
+        if (finance) Section.finance,
         if (commissions) Section.commissions,
       ];
 }
@@ -130,6 +152,8 @@ enum Section {
   inventory('Inventario', Icons.inventory_2_outlined, Icons.inventory_2),
   cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
   sales('Ventas', Icons.receipt_long_outlined, Icons.receipt_long),
+  purchases('Compras', Icons.shopping_bag_outlined, Icons.shopping_bag),
+  finance('Finanzas', Icons.account_balance_outlined, Icons.account_balance),
   commissions('Comisiones', Icons.payments_outlined, Icons.payments);
 
   const Section(this.label, this.icon, this.activeIcon);
@@ -147,6 +171,8 @@ enum Section {
         Section.inventory => const InventoryScreen(),
         Section.cash => const CashScreen(),
         Section.sales => const SalesScreen(),
+        Section.purchases => const PurchasesHubScreen(),
+        Section.finance => const FinanceHubScreen(),
         Section.commissions => const CommissionsScreen(),
       };
 }

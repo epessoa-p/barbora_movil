@@ -8,8 +8,8 @@ import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/error_view.dart';
+import 'admin_screen.dart';
 import 'agenda_screen.dart';
-import 'barbers_screen.dart';
 import 'blocks_screen.dart';
 import 'cash_screen.dart';
 import 'checkout_screen.dart';
@@ -19,7 +19,6 @@ import 'inventory_screen.dart';
 import 'commissions_screen.dart';
 import 'new_appointment_screen.dart';
 import 'profile_screen.dart';
-import 'reports_screen.dart';
 import 'sales_screen.dart';
 import 'services_screen.dart';
 
@@ -57,8 +56,25 @@ class AppMenu {
   /// Productos y existencias: entradas, salidas, ajustes.
   bool get inventory => _allows('inventario', 'products.view');
 
-  /// Gestionar barberos (personal): administrativo, solo por permiso.
+  // ── Administración ──────────────────────────────────────────────────────
+  // No son secciones del menú: son los cuadros de la pantalla
+  // «Administración», que se abre desde abajo del menú lateral.
+
+  /// Gestionar el personal: administrativo, solo por permiso.
   bool get barbers => me?.can('personal.view') ?? false;
+
+  /// «Mi empresa» y métodos de pago son de configuración: sin plan, como en
+  /// la web.
+  bool get companyProfile => me?.can('settings.view') ?? false;
+
+  bool get paymentMethods => me?.can('settings.view') ?? false;
+
+  bool get branches => me?.can('branches.view') ?? false;
+
+  /// Las cajas registradoras (no el turno): módulo «caja» y `cajas.view`.
+  bool get cajas => _allows('caja', 'cajas.view');
+
+  bool get admin => companyProfile || reports || barbers || branches || cajas || paymentMethods;
 
   /// Un barbero que solo atiende no tiene por qué ver el cajón.
   bool get cash => _allows('caja', 'cash.view');
@@ -74,7 +90,8 @@ class AppMenu {
   bool get reports => _allows('estadisticas', 'reports.view');
 
   // El perfil ya no es una sección del menú: se abre con el botón de arriba a
-  // la derecha (ver HomeShell).
+  // la derecha (ver HomeShell). Personal y Reportes se abren desde
+  // «Administración».
   List<Section> get sections => [
         // El Inicio va primero: con él, la app abre ahí; sin él, en la Agenda.
         if (home) Section.home,
@@ -83,11 +100,9 @@ class AppMenu {
         if (clients) Section.clients,
         if (services) Section.services,
         if (inventory) Section.inventory,
-        if (barbers) Section.barbers,
         if (cash) Section.cash,
         if (sales) Section.sales,
         if (commissions) Section.commissions,
-        if (reports) Section.reports,
       ];
 }
 
@@ -98,11 +113,9 @@ enum Section {
   clients('Clientes', Icons.people_outline, Icons.people),
   services('Servicios', Icons.design_services_outlined, Icons.design_services),
   inventory('Inventario', Icons.inventory_2_outlined, Icons.inventory_2),
-  barbers('Barberos', Icons.content_cut_outlined, Icons.content_cut),
   cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
   sales('Ventas', Icons.receipt_long_outlined, Icons.receipt_long),
-  commissions('Comisiones', Icons.payments_outlined, Icons.payments),
-  reports('Reportes', Icons.bar_chart_outlined, Icons.bar_chart);
+  commissions('Comisiones', Icons.payments_outlined, Icons.payments);
 
   const Section(this.label, this.icon, this.activeIcon);
 
@@ -117,11 +130,9 @@ enum Section {
         Section.clients => const ClientsScreen(),
         Section.services => const ServicesScreen(),
         Section.inventory => const InventoryScreen(),
-        Section.barbers => const BarbersScreen(),
         Section.cash => const CashScreen(),
         Section.sales => const SalesScreen(),
         Section.commissions => const CommissionsScreen(),
-        Section.reports => const ReportsScreen(),
       };
 }
 
@@ -285,10 +296,12 @@ class _HomeShellState extends State<HomeShell> {
       body: SafeArea(
         top: false,
         child: current == null
-            ? const EmptyView(
+            ? EmptyView(
                 icon: Icons.lock_outline,
                 title: 'Sin accesos',
-                subtitle: 'Tu cuenta no tiene módulos habilitados. Habla con tu administrador.',
+                subtitle: menu.admin
+                    ? 'Lo tuyo está en «Administración», en el menú lateral.'
+                    : 'Tu cuenta no tiene módulos habilitados. Habla con tu administrador.',
               )
             : IndexedStack(
                 index: sections.indexOf(current),
@@ -383,6 +396,16 @@ class _AppDrawer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
             child: Column(
               children: [
+                if (menu.admin)
+                  _DrawerItem(
+                    icon: Icons.admin_panel_settings_outlined,
+                    label: 'Administración',
+                    onTap: () {
+                      Navigator.of(context)
+                        ..pop() // cierra el menú
+                        ..push(MaterialPageRoute(builder: (_) => const AdminScreen()));
+                    },
+                  ),
                 if (auth.companies.length > 1)
                   _DrawerItem(
                     icon: Icons.swap_horiz,

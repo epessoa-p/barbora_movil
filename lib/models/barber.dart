@@ -6,6 +6,8 @@ class Barber {
     required this.fullName,
     this.cargoId,
     this.cargo,
+    this.branchId,
+    this.branch,
     this.phone,
     this.specialty,
     this.idNumber,
@@ -20,6 +22,10 @@ class Barber {
   final String fullName;
   final int? cargoId;
   final String? cargo;
+
+  /// Sucursal base: ahí se numeran sus citas y ventas.
+  final int? branchId;
+  final String? branch;
   final String? phone;
   final String? specialty;
   final String? idNumber;
@@ -45,6 +51,8 @@ class Barber {
         fullName: json['full_name'] as String? ?? '',
         cargoId: json['cargo_id'] as int?,
         cargo: json['cargo'] as String?,
+        branchId: json['branch_id'] as int?,
+        branch: json['branch'] as String?,
         phone: json['phone'] as String?,
         specialty: json['specialty'] as String?,
         idNumber: json['id_number'] as String?,

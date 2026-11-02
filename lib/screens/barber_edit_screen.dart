@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/upper_case.dart';
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
+import '../models/admin.dart';
 import '../models/barber.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
@@ -30,10 +31,12 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
   );
 
   int? _cargoId;
+  late int? _branchId = widget.barber?.branchId;
   late bool _bookable = widget.barber?.bookable ?? true;
   late bool _active = widget.barber?.active ?? true;
 
   List<CargoOption> _cargos = const [];
+  List<PickOption> _branches = const [];
   bool _loadingCargos = true;
   ApiException? _loadError;
 
@@ -63,13 +66,16 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
     });
 
     try {
-      final body = await context.read<ApiClient>().get('/cargos');
+      final body = await context.read<ApiClient>().get('/personal/options');
       if (!mounted) return;
-      setState(
-        () => _cargos = (body['data'] as List? ?? [])
+      setState(() {
+        _cargos = (body['cargos'] as List? ?? [])
             .map((e) => CargoOption.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+            .toList();
+        _branches = PickOption.listOf(body['branches']);
+        // Con una sola sucursal no hay nada que elegir.
+        if (_branchId == null && _branches.length == 1) _branchId = _branches.first.id;
+      });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _loadError = e);
@@ -88,6 +94,7 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
     final body = {
       'full_name': upperName(_name.text),
       'cargo_id': _cargoId,
+      'branch_id': _branchId,
       'phone': _phone.text.trim(),
       'specialty': _specialty.text.trim(),
       'bookable': _bookable ? 1 : 0,
@@ -109,7 +116,8 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
       setState(() {
         _errors
           ..['full_name'] = e.firstErrorFor('full_name') ?? ''
-          ..['cargo_id'] = e.firstErrorFor('cargo_id') ?? '';
+          ..['cargo_id'] = e.firstErrorFor('cargo_id') ?? ''
+          ..['branch_id'] = e.firstErrorFor('branch_id') ?? '';
         _error = e.errors.isEmpty ? e.message : null;
       });
     } finally {
@@ -123,7 +131,7 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
       appBar: AppBar(
         backgroundColor: BarboraTheme.inkSoft,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(widget.isEditing ? 'Editar barbero' : 'Nuevo barbero'),
+        title: Text(widget.isEditing ? 'Editar personal' : 'Nuevo personal'),
       ),
       body: _loadingCargos
           ? const Center(
@@ -176,6 +184,23 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
             ),
           ),
         const SizedBox(height: 14),
+
+        if (_branches.isNotEmpty || _branchId != null) ...[
+          DropdownButtonFormField<int>(
+            initialValue: _branches.any((b) => b.id == _branchId) ? _branchId : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Sucursal',
+              helperText: 'Donde trabaja: ahí se numeran sus citas y ventas.',
+              errorText: _errors['branch_id']?.isNotEmpty == true ? _errors['branch_id'] : null,
+            ),
+            items: [
+              for (final b in _branches) DropdownMenuItem(value: b.id, child: Text(b.name)),
+            ],
+            onChanged: (v) => setState(() => _branchId = v),
+          ),
+          const SizedBox(height: 14),
+        ],
 
         TextField(
           controller: _phone,
@@ -242,7 +267,7 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           label: Text(
             _saving
                 ? 'Guardando…'
-                : (widget.isEditing ? 'Guardar cambios' : 'Crear barbero'),
+                : (widget.isEditing ? 'Guardar cambios' : 'Crear personal'),
           ),
         ),
       ],

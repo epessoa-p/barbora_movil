@@ -41,6 +41,7 @@ void main() {
         'GET /reports/ventas' => _reporteVentas,
         'GET /personal' => _personal,
         'GET /cargos' => _cargos,
+        'GET /personal/options' => {'cargos': _cargos['data'], 'branches': const []},
         'POST /personal' => () {
             booked = jsonDecode(request.body) as Map<String, dynamic>;
             return {
@@ -193,6 +194,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Arranca la app y abre «Administración» (abajo del menú, junto a
+  /// «Cerrar sesión»); si se indica, entra además en ese cuadro.
+  Future<void> openAdmin(WidgetTester tester, Map<String, Object> me, [String? card]) async {
+    await pumpApp(tester, me);
+    await openDrawer(tester);
+    await tester.tap(inDrawer('Administración'));
+    await tester.pumpAndSettle();
+
+    if (card != null) {
+      await tester.tap(find.text(card));
+      await tester.pumpAndSettle();
+    }
+  }
+
   testWidgets('un barbero sin más permisos solo ve lo suyo en el menú', (tester) async {
     await pumpApp(tester, _meBarbero);
 
@@ -208,6 +223,20 @@ void main() {
     expect(inDrawer('Cobrar'), findsNothing);
     expect(inDrawer('Nueva cita'), findsNothing);
     expect(inDrawer('Cerrar sesión'), findsOneWidget);
+    expect(inDrawer('Administración'), findsNothing, reason: 'Sin permisos administrativos no sale.');
+  });
+
+  testWidgets('Administración muestra solo los cuadros que el permiso deja ver', (tester) async {
+    await openAdmin(tester, _meRecepcion);
+
+    // Recepción: reportes y personal sí; empresa, sucursales, cajas y
+    // métodos de pago no (no tiene esos permisos).
+    expect(find.text('Reportes'), findsOneWidget);
+    expect(find.text('Personal'), findsOneWidget);
+    expect(find.text('Mi empresa'), findsNothing);
+    expect(find.text('Sucursales'), findsNothing);
+    expect(find.text('Cajas'), findsNothing);
+    expect(find.text('Métodos de pago'), findsNothing);
   });
 
   testWidgets('el perfil se abre con el botón del AppBar', (tester) async {
@@ -629,10 +658,8 @@ void main() {
     expect(find.text('Editar servicio'), findsNothing);
   });
 
-  testWidgets('la sección Reportes abre un reporte', (tester) async {
-    await pumpApp(tester, _meRecepcion);
-
-    await tapDrawer(tester, 'Reportes');
+  testWidgets('Reportes (en Administración) abre un reporte', (tester) async {
+    await openAdmin(tester, _meRecepcion, 'Reportes');
 
     // La portada con las tarjetas.
     expect(find.text('Ventas'), findsOneWidget);
@@ -649,20 +676,18 @@ void main() {
     expect(find.text('POR MÉTODO DE PAGO'), findsOneWidget);
   });
 
-  testWidgets('la sección Barberos lista y abre el alta', (tester) async {
-    await pumpApp(tester, _meRecepcion);
-
-    await tapDrawer(tester, 'Barberos');
+  testWidgets('Personal (en Administración) lista y abre el alta', (tester) async {
+    await openAdmin(tester, _meRecepcion, 'Personal');
 
     // Lista (activos e inactivos).
     expect(find.text('Tania Molina'), findsOneWidget);
     expect(find.text('Diego Inactivo'), findsOneWidget);
 
     // Alta de un barbero.
-    await tester.tap(find.widgetWithText(FloatingActionButton, 'Nuevo barbero'));
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Nuevo personal'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nuevo barbero'), findsWidgets);
+    expect(find.text('Nuevo personal'), findsWidgets);
     await tester.enterText(find.widgetWithText(TextField, 'Nombre completo'), 'Marco Vaca');
     // Elegir cargo del desplegable.
     await tester.tap(find.byType(DropdownButtonFormField<int>));
@@ -670,7 +695,7 @@ void main() {
     await tester.tap(find.text('Barbero').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Crear barbero'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Crear personal'));
     await tester.pumpAndSettle();
 
     expect(seen.any((r) => r == 'POST /personal'), isTrue);

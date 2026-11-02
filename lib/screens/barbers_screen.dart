@@ -9,7 +9,7 @@ import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
 import 'barber_edit_screen.dart';
 
-/// Gestión de barberos: lista (activos e inactivos), alta y edición.
+/// Gestión del personal: lista (activos e inactivos), alta y edición.
 class BarbersScreen extends StatefulWidget {
   const BarbersScreen({super.key});
 
@@ -82,7 +82,7 @@ class _BarbersScreenState extends State<BarbersScreen> {
               backgroundColor: BarboraTheme.copper,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add),
-              label: const Text('Nuevo barbero', style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Text('Nuevo personal', style: TextStyle(fontWeight: FontWeight.w700)),
             )
           : null,
     );
@@ -106,7 +106,7 @@ class _BarbersScreenState extends State<BarbersScreen> {
             SizedBox(height: 100),
             EmptyView(
               icon: Icons.content_cut,
-              title: 'Sin barberos',
+              title: 'Sin personal',
               subtitle: 'Agrega al personal con el botón de abajo.',
             ),
           ],
@@ -178,6 +178,7 @@ class _BarberTile extends StatelessWidget {
                 Text(
                   [
                     barber.cargo ?? 'Sin cargo',
+                    if (barber.branch != null) barber.branch!,
                     if (barber.specialty != null && barber.specialty!.isNotEmpty) barber.specialty!,
                   ].join(' · '),
                   maxLines: 1,

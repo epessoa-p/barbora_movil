@@ -448,7 +448,7 @@ void main() {
         session: s,
         routes: {'/me': _meCompleto, '/my/agenda': _agenda, '/agenda': _agenda},
         afterLoad: (t) async {
-          await openSection(t, 'Reportes');
+          await openAdmin(t, 'Reportes');
         });
   });
 
@@ -520,7 +520,7 @@ void main() {
           },
         },
         afterLoad: (t) async {
-          await openSection(t, 'Reportes');
+          await openAdmin(t, 'Reportes');
           await t.tap(find.text('Ventas'));
           await t.pumpAndSettle();
         });
@@ -545,7 +545,27 @@ void main() {
           },
         },
         afterLoad: (t) async {
-          await openSection(t, 'Barberos');
+          await openAdmin(t, 'Personal');
+        });
+  });
+
+  testWidgets('27 administracion', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+    final meAdmin = <String, Object>{
+      ..._meCompleto,
+      'permissions': [
+        ...(_meCompleto['permissions']! as List),
+        'settings.view',
+        'branches.view',
+        'cajas.view',
+      ],
+    };
+
+    await shoot(tester, '27_administracion',
+        session: s,
+        routes: {'/me': meAdmin, '/my/agenda': _agenda, '/agenda': _agenda},
+        afterLoad: (t) async {
+          await openAdmin(t);
         });
   });
 
@@ -1534,6 +1554,19 @@ Future<void> openSection(WidgetTester t, String label) async {
   );
   await t.tap(item);
   await t.pumpAndSettle();
+}
+
+/// Abre «Administración» (abajo del menú) y, si se indica, uno de sus cuadros.
+Future<void> openAdmin(WidgetTester t, [String? card]) async {
+  await t.tap(find.byIcon(Icons.menu));
+  await t.pumpAndSettle();
+  await t.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Administración')));
+  await t.pumpAndSettle();
+
+  if (card != null) {
+    await t.tap(find.text(card));
+    await t.pumpAndSettle();
+  }
 }
 
 /// Tania con permisos de recepción y caja: el menú con todo a la vista.

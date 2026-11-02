@@ -622,6 +622,21 @@ class _ClosedShiftCard extends StatelessWidget {
 
                 _Line(label: 'Esperado', value: session.expectedAmount ?? 0, symbol: symbol),
                 _Line(label: 'Contado', value: session.closingAmount ?? 0, symbol: symbol),
+                // El conteo, si se cerró por billetes y monedas.
+                for (final e in (session.closingDenominations.entries.toList()
+                  ..sort((a, b) => b.key.compareTo(a.key))))
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, top: 2),
+                    child: Row(
+                      children: [
+                        Text('${e.value} × $symbol ${_money(e.key)}',
+                            style: const TextStyle(fontSize: 12, color: BarboraTheme.textMuted)),
+                        const Spacer(),
+                        Text('$symbol ${(e.key * e.value).toStringAsFixed(2)}',
+                            style: const TextStyle(fontSize: 12, color: BarboraTheme.textMuted)),
+                      ],
+                    ),
+                  ),
                 const Divider(height: 22),
                 _Line(
                   label: 'Diferencia',
@@ -799,7 +814,10 @@ class _MovementSheetState extends State<_MovementSheet> {
   }
 }
 
-/// Cerrar el turno: se cuenta el efectivo y se compara con el esperado.
+/// Cerrar el turno: se cuenta el efectivo y se compara con el esperado. Solo
+/// el efectivo: lo cobrado por QR, tarjeta… está en el banco y se muestra
+/// aparte. Según la barbería, se escribe el total o se cuentan billetes y
+/// monedas (y el total sale solo).
 class _CloseSheet extends StatefulWidget {
   const _CloseSheet({required this.session});
 
@@ -813,11 +831,41 @@ class _CloseSheetState extends State<_CloseSheet> {
   final _counted = TextEditingController();
   final _notes = TextEditingController();
 
+  /// Por billetes y monedas: una casilla por denominación.
+  late final Map<double, TextEditingController> _pieces;
+
+  late final bool _byDenomination;
+
+  @override
+  void initState() {
+    super.initState();
+    final company = context.read<AuthController>().company;
+    _byDenomination = company?.countsDenominations ?? false;
+    _pieces = {
+      if (_byDenomination)
+        for (final v in [...company!.cashBills, ...company.cashCoins]) v: TextEditingController(),
+    };
+  }
+
   @override
   void dispose() {
     _counted.dispose();
     _notes.dispose();
+    for (final c in _pieces.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  Map<double, int> get _counts => {
+        for (final e in _pieces.entries) e.key: int.tryParse(e.value.text) ?? 0,
+      };
+
+  /// Lo contado: la suma de billetes y monedas, o lo escrito.
+  double? get _countedTotal {
+    if (!_byDenomination) return double.tryParse(_counted.text.replaceAll(',', '.'));
+    if (_pieces.values.every((c) => c.text.isEmpty)) return null;
+    return _counts.entries.fold<double>(0, (s, e) => s + e.key * e.value);
   }
 
   Future<void> _close() async {
@@ -826,7 +874,8 @@ class _CloseSheetState extends State<_CloseSheet> {
     final navigator = Navigator.of(context);
 
     final error = await cash.close(
-      countedAmount: double.tryParse(_counted.text.replaceAll(',', '.')) ?? 0,
+      countedAmount: _byDenomination ? null : (_countedTotal ?? 0),
+      denominations: _byDenomination ? _counts : null,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
 
@@ -846,6 +895,11 @@ class _CloseSheetState extends State<_CloseSheet> {
     final cash = context.watch<CashController>();
     final symbol = context.watch<AuthController>().company?.symbol ?? '';
 
+    final session = widget.session;
+    final expected = session.totals.expectedCash;
+    final others = session.byMethod.values.where((m) => !m.countsAsCash && m.count > 0).toList();
+    final counted = _countedTotal;
+
     return _Sheet(
       title: 'Cerrar turno',
       children: [
@@ -855,32 +909,70 @@ class _CloseSheetState extends State<_CloseSheet> {
             color: BarboraTheme.canvas,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Debería haber',
-                style: TextStyle(fontSize: 13, color: BarboraTheme.textMuted),
-              ),
-              const Spacer(),
-              Text(
-                '$symbol ${widget.session.totals.expectedCash.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-              ),
+              const _SheetLabel('Efectivo (se cuenta)'),
+              _SheetRow('Fondo inicial', session.openingAmount, symbol),
+              _SheetRow('Efectivo cobrado', session.totals.cashIncome, symbol),
+              _SheetRow('Efectivo pagado', -session.totals.cashExpense, symbol),
+              const Divider(height: 14),
+              _SheetRow('Debería haber', expected, symbol, strong: true),
+              const SizedBox(height: 12),
+              const _SheetLabel('Otras formas de pago (no se cuentan)'),
+              if (others.isEmpty)
+                const Text('Ningún cobro por otras formas.',
+                    style: TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted))
+              else ...[
+                for (final m in others) _SheetRow('${m.label ?? ''} (${m.count})', m.net, symbol),
+                const Divider(height: 14),
+                _SheetRow('Total en otras formas', others.fold<double>(0, (s, m) => s + m.net), symbol,
+                    strong: true),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 16),
 
-        TextField(
-          controller: _counted,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: 'Efectivo contado',
-            prefixText: '$symbol ',
-            helperText: 'Cuenta el cajón y escribe lo que hay de verdad.',
+        if (_byDenomination) ...[
+          const _SheetLabel('Billetes y monedas del cajón'),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final e in _pieces.entries)
+                SizedBox(
+                  width: 150,
+                  child: TextField(
+                    controller: e.value,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      labelText: '$symbol ${_money(e.key)}',
+                      prefixText: '× ',
+                      hintText: '0',
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ),
+          const SizedBox(height: 12),
+          _SheetRow('Efectivo contado', counted ?? 0, symbol, strong: true),
+        ] else
+          TextField(
+            controller: _counted,
+            autofocus: true,
+            onChanged: (_) => setState(() {}),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Efectivo contado',
+              prefixText: '$symbol ',
+              helperText: 'Cuenta el cajón y escribe lo que hay de verdad.',
+            ),
+          ),
+        if (counted != null) _DifferenceHint(counted - expected, symbol),
         const SizedBox(height: 14),
 
         TextField(
@@ -902,6 +994,83 @@ class _CloseSheetState extends State<_CloseSheet> {
               : const Text('Cerrar y arquear'),
         ),
       ],
+    );
+  }
+}
+
+/// «200», «0.50»: el valor de un billete o moneda sin decimales de sobra.
+String _money(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
+class _SheetLabel extends StatelessWidget {
+  const _SheetLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .8,
+            color: BarboraTheme.textMuted,
+          ),
+        ),
+      );
+}
+
+class _SheetRow extends StatelessWidget {
+  const _SheetRow(this.label, this.value, this.symbol, {this.strong = false});
+
+  final String label;
+  final double value;
+  final String symbol;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: strong ? BarboraTheme.ink : BarboraTheme.textMuted,
+                  fontWeight: strong ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ),
+            Text(
+              '$symbol ${value.toStringAsFixed(2)}',
+              style: TextStyle(fontSize: strong ? 15 : 13, fontWeight: strong ? FontWeight.w800 : FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+}
+
+/// Sobra, falta o cuadra: se adelanta mientras se cuenta.
+class _DifferenceHint extends StatelessWidget {
+  const _DifferenceHint(this.difference, this.symbol);
+
+  final double difference;
+  final String symbol;
+
+  @override
+  Widget build(BuildContext context) {
+    final (text, color) = difference.abs() < 0.005
+        ? ('Cuadra con lo esperado.', const Color(0xFF16A34A))
+        : difference > 0
+            ? ('Sobran $symbol ${difference.toStringAsFixed(2)}.', const Color(0xFF0EA5E9))
+            : ('Faltan $symbol ${(-difference).toStringAsFixed(2)}.', BarboraTheme.copperDark);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w600)),
     );
   }
 }

@@ -91,6 +91,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     return Scaffold(
       floatingActionButton: canCreate && !_loading && _error == null
           ? FloatingActionButton.extended(
+              heroTag: null,
               onPressed: () => _edit(),
               backgroundColor: BarboraTheme.copper,
               foregroundColor: Colors.white,

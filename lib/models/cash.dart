@@ -25,6 +25,7 @@ class CashSession {
     this.openingNotes,
     this.closingNotes,
     this.byMethod = const {},
+    this.closingDenominations = const {},
   });
 
   final int id;
@@ -53,6 +54,9 @@ class CashSession {
 
   /// Desglose por forma de pago (slug → totales).
   final Map<String, MethodTotal> byMethod;
+
+  /// Si se cerró contando billetes y monedas: valor → cantidad.
+  final Map<double, int> closingDenominations;
 
   /// ¿Sobró, faltó o cuadró? Null mientras el turno sigue abierto.
   bool? get isShort => difference == null ? null : difference! < -0.005;
@@ -90,13 +94,25 @@ class CashSession {
               (k, v) => MapEntry(k as String, MethodTotal.fromJson(v as Map<String, dynamic>)),
             )
           : const {},
+      // {«200.00»: 3, «0.50»: 4}, o null si se cerró por total.
+      closingDenominations: json['closing_denominations'] is Map
+          ? (json['closing_denominations'] as Map).map(
+              (k, v) => MapEntry(double.parse('$k'), (v as num).toInt()),
+            )
+          : const {},
     );
   }
 }
 
 /// Lo que entró y salió por una forma de pago en el turno.
 class MethodTotal {
-  const MethodTotal({this.income = 0, this.expense = 0, this.count = 0, this.label});
+  const MethodTotal({
+    this.income = 0,
+    this.expense = 0,
+    this.count = 0,
+    this.label,
+    this.countsAsCash = false,
+  });
 
   final double income;
   final double expense;
@@ -105,11 +121,17 @@ class MethodTotal {
   /// Nombre de la forma de pago («Efectivo», «QR»).
   final String? label;
 
+  /// ¿Entra al arqueo? Solo el efectivo está en el cajón.
+  final bool countsAsCash;
+
+  double get net => income - expense;
+
   factory MethodTotal.fromJson(Map<String, dynamic> json) => MethodTotal(
         income: (json['income'] as num?)?.toDouble() ?? 0,
         expense: (json['expense'] as num?)?.toDouble() ?? 0,
         count: json['count'] as int? ?? 0,
         label: json['label'] as String?,
+        countsAsCash: json['counts_as_cash'] as bool? ?? false,
       );
 }
 

@@ -57,6 +57,34 @@ class ApiClient {
   Future<Map<String, dynamic>> delete(String path, {bool withCompany = true}) =>
       _send('DELETE', path, withCompany: withCompany);
 
+  /// POST multipart: campos de texto y, si hay, un archivo (el logo, por
+  /// ejemplo). Mismas cabeceras y mismo manejo de errores que el resto.
+  Future<Map<String, dynamic>> upload(
+    String path, {
+    Map<String, String> fields = const {},
+    String? fileField,
+    String? filePath,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('${Config.apiUrl}$path'))
+      ..headers.addAll(_headers(withCompany: true, withAuth: true)..remove('Content-Type'))
+      ..fields.addAll(fields);
+
+    if (fileField != null && filePath != null) {
+      request.files.add(await http.MultipartFile.fromPath(fileField, filePath));
+    }
+
+    late http.Response response;
+
+    try {
+      final streamed = await _client.send(request).timeout(Config.requestTimeout);
+      response = await http.Response.fromStream(streamed);
+    } catch (_) {
+      throw ApiException.network();
+    }
+
+    return _decode(response);
+  }
+
   Future<Map<String, dynamic>> _send(
     String method,
     String path, {

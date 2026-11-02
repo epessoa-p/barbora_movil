@@ -9,15 +9,108 @@ import '../theme/barbora_theme.dart';
 import '../widgets/appointment_tile.dart';
 import '../widgets/error_view.dart';
 import 'appointment_detail_screen.dart';
+import 'blocks_screen.dart';
+import 'home_shell.dart';
+import 'reminders_screen.dart';
 
+/// Las pestañas de abajo de la agenda.
+enum AgendaTab { agenda, reminders, blocks }
+
+/// La agenda con su barra inferior: Agenda (por defecto), Recordatorios y
+/// Bloqueos. Cada pestaña sale solo si el plan y el permiso la dejan; con una
+/// sola, no hay barra.
 class AgendaScreen extends StatefulWidget {
-  const AgendaScreen({super.key});
+  const AgendaScreen({super.key, this.onNewAppointment});
+
+  /// «Nueva cita» (lo decide el shell, que sabe si hay permiso). Null = sin botón.
+  final VoidCallback? onNewAppointment;
 
   @override
   State<AgendaScreen> createState() => _AgendaScreenState();
 }
 
 class _AgendaScreenState extends State<AgendaScreen> {
+  AgendaTab _tab = AgendaTab.agenda;
+
+  /// Pestañas ya abiertas: se montan al visitarlas y se conservan.
+  final Set<AgendaTab> _visited = {AgendaTab.agenda};
+
+  @override
+  Widget build(BuildContext context) {
+    final menu = AppMenu(context.watch<AuthController>().me);
+    final tabs = [
+      AgendaTab.agenda,
+      if (menu.reminders) AgendaTab.reminders,
+      if (menu.blocks) AgendaTab.blocks,
+    ];
+    final tab = tabs.contains(_tab) ? _tab : AgendaTab.agenda;
+    _visited.add(tab);
+
+    return Scaffold(
+      body: IndexedStack(
+        index: tabs.indexOf(tab),
+        children: [
+          for (final t in tabs)
+            !_visited.contains(t)
+                ? const SizedBox.shrink()
+                : switch (t) {
+                    AgendaTab.agenda => const _AgendaView(),
+                    AgendaTab.reminders => const RemindersScreen(),
+                    AgendaTab.blocks => const BlocksScreen(),
+                  },
+        ],
+      ),
+      floatingActionButton: tab == AgendaTab.agenda && widget.onNewAppointment != null
+          ? FloatingActionButton.extended(
+              // Sin hero: la agenda queda montada (IndexedStack) mientras otra
+              // sección muestra su propio botón, y dos con el mismo tag chocan.
+              heroTag: null,
+              onPressed: widget.onNewAppointment,
+              backgroundColor: BarboraTheme.copper,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva cita', style: TextStyle(fontWeight: FontWeight.w700)),
+            )
+          : null,
+      bottomNavigationBar: tabs.length < 2
+          ? null
+          : NavigationBar(
+              selectedIndex: tabs.indexOf(tab),
+              onDestinationSelected: (i) => setState(() => _tab = tabs[i]),
+              destinations: [
+                for (final t in tabs)
+                  switch (t) {
+                    AgendaTab.agenda => const NavigationDestination(
+                        icon: Icon(Icons.calendar_today_outlined),
+                        selectedIcon: Icon(Icons.calendar_today),
+                        label: 'Agenda',
+                      ),
+                    AgendaTab.reminders => const NavigationDestination(
+                        icon: Icon(Icons.notifications_none),
+                        selectedIcon: Icon(Icons.notifications),
+                        label: 'Recordatorios',
+                      ),
+                    AgendaTab.blocks => const NavigationDestination(
+                        icon: Icon(Icons.event_busy_outlined),
+                        selectedIcon: Icon(Icons.event_busy),
+                        label: 'Bloqueos',
+                      ),
+                  },
+              ],
+            ),
+    );
+  }
+}
+
+/// La agenda en sí: cabecera, filtros y citas del día, la semana o el mes.
+class _AgendaView extends StatefulWidget {
+  const _AgendaView();
+
+  @override
+  State<_AgendaView> createState() => _AgendaViewState();
+}
+
+class _AgendaViewState extends State<_AgendaView> {
   @override
   void initState() {
     super.initState();
@@ -60,7 +153,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
       children: [
         _DayHeader(
           day: agenda.day,
-          rangeEnd: agenda.isWeek ? agenda.rangeEnd : null,
+          view: agenda.view,
+          rangeEnd: agenda.rangeEnd,
           isToday: agenda.isToday,
           summary: agenda.summary,
           showSummary: !agenda.loading && agenda.error == null,
@@ -138,6 +232,21 @@ class _AgendaScreenState extends State<AgendaScreen> {
     }
 
     if (agenda.isWeek) return [_week(agenda, symbol)];
+
+    if (agenda.isMonth) {
+      return [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          sliver: SliverToBoxAdapter(
+            child: _MonthGrid(
+              month: agenda.day,
+              byDay: agenda.byDay,
+              onDay: agenda.openDay,
+            ),
+          ),
+        ),
+      ];
+    }
 
     if (agenda.appointments.isEmpty) {
       return [
@@ -242,15 +351,16 @@ class _Filters extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SegmentedButton<bool>(
+          SegmentedButton<AgendaView>(
             showSelectedIcon: false,
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
             segments: const [
-              ButtonSegment(value: false, label: Text('Día')),
-              ButtonSegment(value: true, label: Text('Semana')),
+              ButtonSegment(value: AgendaView.day, label: Text('Día')),
+              ButtonSegment(value: AgendaView.week, label: Text('Semana')),
+              ButtonSegment(value: AgendaView.month, label: Text('Mes')),
             ],
-            selected: {agenda.isWeek},
-            onSelectionChanged: (s) => agenda.setWeek(s.first),
+            selected: {agenda.view},
+            onSelectionChanged: (s) => agenda.setView(s.first),
           ),
           if (showBarber) ...[
             const SizedBox(height: 10),
@@ -335,7 +445,8 @@ class _WeekDayHeader extends StatelessWidget {
 class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.day,
-    this.rangeEnd,
+    required this.view,
+    required this.rangeEnd,
     required this.isToday,
     required this.summary,
     required this.showSummary,
@@ -346,9 +457,10 @@ class _DayHeader extends StatelessWidget {
   });
 
   final DateTime day;
+  final AgendaView view;
 
-  /// Último día en la vista de semana; null en la de un día.
-  final DateTime? rangeEnd;
+  /// Último día del rango (igual a [day] en la vista de un día).
+  final DateTime rangeEnd;
   final bool isToday;
   final AgendaSummary summary;
   final bool showSummary;
@@ -360,15 +472,19 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final end = rangeEnd;
-    final weekday = end == null
-        ? DateFormat('EEEE', 'es').format(day)
-        : 'Semana';
-    final rest = end == null
-        ? DateFormat("d 'de' MMMM", 'es').format(day)
-        : day.month == end.month
-        ? '${day.day} – ${DateFormat("d 'de' MMMM", 'es').format(end)}'
-        : '${DateFormat("d 'de' MMM", 'es').format(day)} – '
-              '${DateFormat("d 'de' MMM", 'es').format(end)}';
+    final weekday = switch (view) {
+      AgendaView.day => DateFormat('EEEE', 'es').format(day),
+      AgendaView.week => 'Semana',
+      AgendaView.month => DateFormat('MMMM', 'es').format(day),
+    };
+    final rest = switch (view) {
+      AgendaView.day => DateFormat("d 'de' MMMM", 'es').format(day),
+      AgendaView.month => '${day.year}',
+      AgendaView.week => day.month == end.month
+          ? '${day.day} – ${DateFormat("d 'de' MMMM", 'es').format(end)}'
+          : '${DateFormat("d 'de' MMM", 'es').format(day)} – '
+              '${DateFormat("d 'de' MMM", 'es').format(end)}',
+    };
 
     return Container(
       // Degradado vertical que arranca en el color de la barra superior, para
@@ -434,7 +550,11 @@ class _DayHeader extends StatelessWidget {
                   onPressed: onToday,
                   icon: const Icon(Icons.today, size: 15),
                   label: Text(
-                    rangeEnd == null ? 'Ir a hoy' : 'Ir a esta semana',
+                    switch (view) {
+                      AgendaView.day => 'Ir a hoy',
+                      AgendaView.week => 'Ir a esta semana',
+                      AgendaView.month => 'Ir a este mes',
+                    },
                     style: const TextStyle(fontSize: 12.5),
                   ),
                   style: TextButton.styleFrom(
@@ -470,6 +590,116 @@ class _DayHeader extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// El mes como calendario: cada día con cuántas citas tiene. Tocar un día lo
+/// abre en la vista de día.
+class _MonthGrid extends StatelessWidget {
+  const _MonthGrid({required this.month, required this.byDay, required this.onDay});
+
+  /// Día 1 del mes.
+  final DateTime month;
+  final Map<DateTime, List<Appointment>> byDay;
+  final ValueChanged<DateTime> onDay;
+
+  static const _weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    // Huecos antes del día 1: la semana empieza en lunes.
+    final leading = month.weekday - DateTime.monday;
+    final cells = leading + daysInMonth;
+    final rows = (cells / 7).ceil();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                for (final w in _weekdays)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        w,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: BarboraTheme.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            for (var r = 0; r < rows; r++)
+              Row(
+                children: [
+                  for (var c = 0; c < 7; c++)
+                    Expanded(child: _cell(r * 7 + c - leading + 1, daysInMonth, today)),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cell(int dayNumber, int daysInMonth, DateTime today) {
+    if (dayNumber < 1 || dayNumber > daysInMonth) return const SizedBox(height: 54);
+
+    final date = DateTime(month.year, month.month, dayNumber);
+    final count = byDay[date]?.length ?? 0;
+    final isToday = date == today;
+
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Material(
+        color: isToday ? BarboraTheme.copper.withValues(alpha: .12) : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => onDay(date),
+          child: SizedBox(
+            height: 50,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$dayNumber',
+                  style: TextStyle(
+                    fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 14,
+                    color: isToday ? BarboraTheme.copperDark : BarboraTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                if (count > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: BarboraTheme.copper,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w700),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 15),
+              ],
+            ),
+          ),
         ),
       ),
     );

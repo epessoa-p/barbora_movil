@@ -229,9 +229,9 @@ void main() {
   testWidgets('Administración muestra solo los cuadros que el permiso deja ver', (tester) async {
     await openAdmin(tester, _meRecepcion);
 
-    // Recepción: reportes y personal sí; empresa, sucursales, cajas y
+    // Recepción: personal sí; empresa, sucursales, cajas y
     // métodos de pago no (no tiene esos permisos).
-    expect(find.text('Reportes'), findsOneWidget);
+    expect(find.text('Reportes'), findsNothing, reason: 'Reportes va en el menú, no en Administración.');
     expect(find.text('Personal'), findsOneWidget);
     expect(find.text('Mi empresa'), findsNothing);
     expect(find.text('Sucursales'), findsNothing);
@@ -378,7 +378,9 @@ void main() {
 
   testWidgets('se lista y se crea un bloqueo de agenda', (tester) async {
     await pumpApp(tester, _meRecepcion);
-    await tapDrawer(tester, 'Bloqueos');
+    // Los bloqueos son una pestaña de abajo de la agenda.
+    await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Bloqueos')));
+    await tester.pumpAndSettle();
 
     expect(find.text('Vacaciones de Tania'), findsOneWidget);
     expect(find.text('02/11/2026 – 06/11/2026'), findsOneWidget);
@@ -547,9 +549,7 @@ void main() {
   testWidgets('la sección Servicios lista el catálogo', (tester) async {
     await pumpApp(tester, _meRecepcion);
 
-    await openDrawer(tester);
-    await tester.tap(inDrawer('Servicios'));
-    await tester.pumpAndSettle();
+    await tapDrawer(tester, 'Servicios');
 
     expect(find.text('Corte clásico'), findsOneWidget);
     expect(find.text('Barba'), findsOneWidget);
@@ -638,9 +638,7 @@ void main() {
   testWidgets('se edita el precio de un servicio', (tester) async {
     await pumpApp(tester, _meRecepcion);
 
-    await openDrawer(tester);
-    await tester.tap(inDrawer('Servicios'));
-    await tester.pumpAndSettle();
+    await tapDrawer(tester, 'Servicios');
 
     await tester.tap(find.text('Corte clásico'));
     await tester.pumpAndSettle();
@@ -658,8 +656,11 @@ void main() {
     expect(find.text('Editar servicio'), findsNothing);
   });
 
-  testWidgets('Reportes (en Administración) abre un reporte', (tester) async {
-    await openAdmin(tester, _meRecepcion, 'Reportes');
+  testWidgets('Reportes (abajo del menú) abre un reporte', (tester) async {
+    await pumpApp(tester, _meRecepcion);
+    await openDrawer(tester);
+    await tester.tap(inDrawer('Reportes'));
+    await tester.pumpAndSettle();
 
     // La portada con las tarjetas.
     expect(find.text('Ventas'), findsOneWidget);

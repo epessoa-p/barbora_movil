@@ -75,13 +75,23 @@ class CashController extends ChangeNotifier {
     });
   }
 
-  Future<ApiException?> close({required double countedAmount, String? notes}) async {
+  /// Cierra el turno. Con [denominations] (valor → cantidad) se arquea por
+  /// billetes y monedas y el total lo calcula el servidor.
+  Future<ApiException?> close({
+    double? countedAmount,
+    Map<double, int>? denominations,
+    String? notes,
+  }) async {
     final session = _session;
     if (session == null) return null;
 
     return _run(() async {
       final body = await api.put('/cash/session/${session.id}/close', body: {
-        'closing_amount': countedAmount,
+        'closing_amount': ?countedAmount,
+        if (denominations != null)
+          'denominations': {
+            for (final e in denominations.entries) e.key.toStringAsFixed(2): e.value,
+          },
         'closing_notes': ?notes,
       });
 

@@ -35,6 +35,15 @@ dependencies:
   # Gráficos de los reportes (líneas y barras).
   fl_chart: ^0.69.0
 
+  # Elegir el logo de la barbería desde la galería del teléfono.
+  image_picker: ^1.2.4
+
+  # Abrir WhatsApp con el recordatorio ya escrito.
+  url_launcher: ^6.3.3
+
+  # El QR del catálogo público, dibujado en la app.
+  qr_flutter: ^4.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

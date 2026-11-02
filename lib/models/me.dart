@@ -108,6 +108,7 @@ class StaffProfile {
     this.bookable = false,
     this.photoUrl,
     this.agendaColor,
+    this.branchId,
   });
 
   final int id;
@@ -116,6 +117,9 @@ class StaffProfile {
   final bool bookable;
   final String? photoUrl;
   final String? agendaColor;
+
+  /// Su sucursal base: la que se propone en los formularios.
+  final int? branchId;
 
   String get initials {
     final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
@@ -131,6 +135,7 @@ class StaffProfile {
         bookable: json['bookable'] as bool? ?? false,
         photoUrl: json['photo_url'] as String?,
         agendaColor: json['agenda_color'] as String?,
+        branchId: json['branch_id'] as int?,
       );
 }
 

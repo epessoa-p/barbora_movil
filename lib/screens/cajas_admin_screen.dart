@@ -187,7 +187,10 @@ class _CajaEditScreenState extends State<CajaEditScreen> {
         _branches = PickOption.listOf(body['branches']);
         _personal = PickOption.listOf(body['personal']);
         // Con una sola sucursal no hay nada que elegir.
-        if (_branchId == null && _branches.length == 1) _branchId = _branches.first.id;
+        // La del usuario con sesión; con una sola sucursal, esa.
+        _branchId ??= _branches.length == 1
+            ? _branches.first.id
+            : _branches.map((b) => b.id).where((id) => id == context.read<AuthController>().me?.personal?.branchId).firstOrNull;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -271,14 +274,17 @@ class _CajaEditScreenState extends State<CajaEditScreen> {
           controller: _code,
           decoration: InputDecoration(labelText: 'Código (opcional)', errorText: _errors['code']),
         ),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<int>(
-          initialValue: _branchId,
-          isExpanded: true,
-          decoration: InputDecoration(labelText: 'Sucursal', errorText: _errors['branch_id']),
-          items: [for (final b in _branches) DropdownMenuItem(value: b.id, child: Text(b.name))],
-          onChanged: (v) => setState(() => _branchId = v),
-        ),
+        // Con una sola sucursal no hay nada que elegir: va sola.
+        if (_branches.length > 1) ...[
+          const SizedBox(height: 14),
+          DropdownButtonFormField<int>(
+            initialValue: _branchId,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: 'Sucursal', errorText: _errors['branch_id']),
+            items: [for (final b in _branches) DropdownMenuItem(value: b.id, child: Text(b.name))],
+            onChanged: (v) => setState(() => _branchId = v),
+          ),
+        ],
         const SizedBox(height: 14),
         DropdownButtonFormField<int?>(
           key: ValueKey('personal-$_branchId'),

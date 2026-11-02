@@ -5,14 +5,17 @@ import '../core/api_exception.dart';
 import '../models/appointment.dart';
 import '../models/client.dart';
 
-/// La agenda: de un día o de una semana.
+/// Cuánto abarca la agenda que se ve.
+enum AgendaView { day, week, month }
+
+/// La agenda: de un día, de una semana o de un mes (calendario).
 ///
 /// Dos alcances: la de toda la barbería (`/agenda`) y la del propio barbero
 /// (`/my/agenda`). Cambian la ruta y poco más, así que comparten estado. En la
 /// de la barbería se puede filtrar por barbero.
 ///
-/// En modo semana, [day] es el lunes de esa semana y se piden los 7 días de una
-/// vez (`day` + `to`); las citas se agrupan por fecha en [byDay].
+/// En semana, [day] es el lunes; en mes, el día 1. Se pide todo el rango de
+/// una vez (`day` + `to`) y las citas se agrupan por fecha en [byDay].
 class AgendaController extends ChangeNotifier {
   AgendaController({required this.api});
 
@@ -24,8 +27,10 @@ class AgendaController extends ChangeNotifier {
   bool _onlyMine = false;
   bool get onlyMine => _onlyMine;
 
-  bool _week = false;
-  bool get isWeek => _week;
+  AgendaView _view = AgendaView.day;
+  AgendaView get view => _view;
+  bool get isWeek => _view == AgendaView.week;
+  bool get isMonth => _view == AgendaView.month;
 
   /// Barbero por el que se filtra la agenda de la barbería (null = todos).
   int? _personalId;
@@ -40,7 +45,11 @@ class AgendaController extends ChangeNotifier {
       [for (var i = 0; i < 7; i++) day.add(Duration(days: i))];
 
   /// Último día del rango pedido.
-  DateTime get rangeEnd => _week ? day.add(const Duration(days: 6)) : day;
+  DateTime get rangeEnd => switch (_view) {
+        AgendaView.day => day,
+        AgendaView.week => day.add(const Duration(days: 6)),
+        AgendaView.month => DateTime(day.year, day.month + 1, 0),
+      };
 
   /// Citas agrupadas por fecha (para la vista de semana).
   Map<DateTime, List<Appointment>> get byDay {
@@ -79,15 +88,16 @@ class AgendaController extends ChangeNotifier {
     return only.subtract(Duration(days: only.weekday - DateTime.monday));
   }
 
-  Future<void> load({DateTime? day, bool? onlyMine, bool? week, int? personalId, bool clearPersonal = false}) async {
-    if (week != null) _week = week;
+  Future<void> load({DateTime? day, bool? onlyMine, AgendaView? view, int? personalId, bool clearPersonal = false}) async {
+    if (view != null) _view = view;
     if (day != null) _day = day;
     if (onlyMine != null) _onlyMine = onlyMine;
     if (personalId != null) _personalId = personalId;
     if (clearPersonal) _personalId = null;
 
-    // En semana, el día ancla siempre es el lunes.
-    if (_week) _day = _monday(_day);
+    // El día ancla: el lunes en semana, el día 1 en mes.
+    if (_view == AgendaView.week) _day = _monday(_day);
+    if (_view == AgendaView.month) _day = DateTime(_day.year, _day.month, 1);
 
     _loading = true;
     _error = null;
@@ -97,7 +107,7 @@ class AgendaController extends ChangeNotifier {
       final path = _onlyMine ? '/my/agenda' : '/agenda';
       final body = await api.get(path, query: {
         'day': _dateParam(this.day),
-        if (_week) 'to': _dateParam(rangeEnd),
+        if (_view != AgendaView.day) 'to': _dateParam(rangeEnd),
         // El filtro por barbero solo aplica a la agenda de la barbería.
         if (!_onlyMine && _personalId != null) 'personal_id': _personalId,
       });
@@ -133,24 +143,32 @@ class AgendaController extends ChangeNotifier {
 
   Future<void> goToDay(DateTime day) => load(day: day);
 
-  /// Atrás/adelante: un día, o una semana en modo semana.
-  Future<void> previousDay() => load(day: day.subtract(Duration(days: _week ? 7 : 1)));
+  /// Atrás/adelante: un día, una semana o un mes, según la vista.
+  Future<void> previousDay() => load(day: _shift(-1));
 
-  Future<void> nextDay() => load(day: day.add(Duration(days: _week ? 7 : 1)));
+  Future<void> nextDay() => load(day: _shift(1));
+
+  DateTime _shift(int step) => switch (_view) {
+        AgendaView.day => day.add(Duration(days: step)),
+        AgendaView.week => day.add(Duration(days: 7 * step)),
+        AgendaView.month => DateTime(day.year, day.month + step, 1),
+      };
 
   Future<void> goToToday() => load(day: DateTime.now());
 
   Future<void> toggleScope(bool onlyMine) => load(onlyMine: onlyMine);
 
-  /// Día ↔ semana. Al volver a día se queda en hoy si hoy está en la semana,
-  /// si no en el lunes que se veía.
-  Future<void> setWeek(bool week) {
-    if (week == _week) return Future.value();
+  /// Cambia de vista. Si hoy cae en lo que se veía, la nueva vista arranca
+  /// en hoy; si no, en el primer día de lo que se veía.
+  Future<void> setView(AgendaView view) {
+    if (view == _view) return Future.value();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final target = !week && isToday ? today : day;
-    return load(week: week, day: target);
+    return load(view: view, day: isToday ? today : day);
   }
+
+  /// Desde el calendario: abre ese día en la vista de día.
+  Future<void> openDay(DateTime day) => load(view: AgendaView.day, day: day);
 
   /// Filtra por barbero (null = todos).
   Future<void> setPersonal(int? id) =>

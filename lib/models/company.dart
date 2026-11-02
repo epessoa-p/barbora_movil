@@ -13,6 +13,9 @@ class Company {
     this.email,
     this.logoUrl,
     this.receiptFooter,
+    this.cashCountMode = 'total',
+    this.cashBills = const [],
+    this.cashCoins = const [],
   });
 
   final int id;
@@ -34,6 +37,17 @@ class Company {
   /// URL absoluta, armada con el host por el que llamó el propio móvil.
   final String? logoUrl;
   final String? receiptFooter;
+
+  // ── Cierre de caja ────────────────────────────────────────────────────────
+
+  /// «total» (se escribe lo contado) o «denominations» (billetes y monedas).
+  final String cashCountMode;
+
+  /// Billetes y monedas de la moneda de la barbería, de mayor a menor.
+  final List<double> cashBills;
+  final List<double> cashCoins;
+
+  bool get countsDenominations => cashCountMode == 'denominations' && cashBills.isNotEmpty;
 
   /// El símbolo con el que se muestran los importes. `Bs` en Bolivia.
   String get symbol => currencySymbol ?? currency ?? '';
@@ -60,5 +74,11 @@ class Company {
         email: json['email'] as String?,
         logoUrl: json['logo_url'] as String?,
         receiptFooter: json['receipt_footer'] as String?,
+        cashCountMode: json['cash_count_mode'] as String? ?? 'total',
+        cashBills: _amounts((json['cash_denominations'] as Map?)?['bills']),
+        cashCoins: _amounts((json['cash_denominations'] as Map?)?['coins']),
       );
+
+  static List<double> _amounts(Object? list) =>
+      (list as List? ?? const []).map((e) => (e as num).toDouble()).toList();
 }

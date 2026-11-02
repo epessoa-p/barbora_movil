@@ -6,6 +6,7 @@ import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/admin.dart';
 import '../models/barber.dart';
+import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
 
@@ -74,7 +75,10 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
             .toList();
         _branches = PickOption.listOf(body['branches']);
         // Con una sola sucursal no hay nada que elegir.
-        if (_branchId == null && _branches.length == 1) _branchId = _branches.first.id;
+        // La del usuario con sesión; con una sola sucursal, esa.
+        _branchId ??= _branches.length == 1
+            ? _branches.first.id
+            : _branches.map((b) => b.id).where((id) => id == context.read<AuthController>().me?.personal?.branchId).firstOrNull;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -185,7 +189,8 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
           ),
         const SizedBox(height: 14),
 
-        if (_branches.isNotEmpty || _branchId != null) ...[
+        // Con una sola sucursal no hay nada que elegir: va sola.
+        if (_branches.length > 1) ...[
           DropdownButtonFormField<int>(
             initialValue: _branches.any((b) => b.id == _branchId) ? _branchId : null,
             isExpanded: true,

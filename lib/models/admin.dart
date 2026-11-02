@@ -13,6 +13,7 @@ class CompanyProfile {
     this.email,
     this.receiptFooter,
     this.logoUrl,
+    this.cashCountMode = 'total',
   });
 
   final int id;
@@ -27,6 +28,9 @@ class CompanyProfile {
   final String? receiptFooter;
   final String? logoUrl;
 
+  /// Cierre de caja: «total» o «denominations» (billetes y monedas).
+  final String cashCountMode;
+
   factory CompanyProfile.fromJson(Map<String, dynamic> json) => CompanyProfile(
         id: json['id'] as int,
         name: json['name'] as String? ?? '',
@@ -37,6 +41,7 @@ class CompanyProfile {
         email: json['email'] as String?,
         receiptFooter: json['receipt_footer'] as String?,
         logoUrl: json['logo_url'] as String?,
+        cashCountMode: json['cash_count_mode'] as String? ?? 'total',
       );
 }
 
@@ -165,4 +170,64 @@ class PickOption {
   static List<PickOption> listOf(Object? json) => (json as List? ?? [])
       .map((e) => PickOption.fromJson(e as Map<String, dynamic>))
       .toList();
+}
+
+/// Una categoría de servicios, para administrarla (`/service-categories/manage`).
+class ServiceCategoryItem {
+  const ServiceCategoryItem({
+    required this.id,
+    required this.name,
+    this.description,
+    this.color = '#6B7280',
+    this.active = true,
+    this.servicesCount = 0,
+  });
+
+  final int id;
+  final String name;
+  final String? description;
+
+  /// Hexadecimal, «#AA3300».
+  final String color;
+  final bool active;
+  final int servicesCount;
+
+  factory ServiceCategoryItem.fromJson(Map<String, dynamic> json) => ServiceCategoryItem(
+        id: json['id'] as int,
+        name: json['name'] as String? ?? '',
+        description: json['description'] as String?,
+        color: json['color'] as String? ?? '#6B7280',
+        active: json['active'] as bool? ?? true,
+        servicesCount: json['services_count'] as int? ?? 0,
+      );
+}
+
+/// El catálogo público de la barbería (`/admin/catalog`).
+class CatalogSettings {
+  const CatalogSettings({
+    required this.enabled,
+    required this.showProducts,
+    required this.url,
+    required this.posterUrl,
+    this.servicesCount = 0,
+  });
+
+  /// ¿Publicado? Apagado, el enlace y el QR no muestran nada.
+  final bool enabled;
+  final bool showProducts;
+
+  /// El enlace público (lo que lleva el QR).
+  final String url;
+
+  /// El afiche imprimible con el QR (se guarda como PDF desde el navegador).
+  final String posterUrl;
+  final int servicesCount;
+
+  factory CatalogSettings.fromJson(Map<String, dynamic> json) => CatalogSettings(
+        enabled: json['enabled'] as bool? ?? false,
+        showProducts: json['show_products'] as bool? ?? false,
+        url: json['url'] as String? ?? '',
+        posterUrl: json['poster_url'] as String? ?? '',
+        servicesCount: json['services_count'] as int? ?? 0,
+      );
 }

@@ -9,7 +9,6 @@ import 'cajas_admin_screen.dart';
 import 'company_profile_screen.dart';
 import 'home_shell.dart';
 import 'payment_methods_screen.dart';
-import 'reports_screen.dart';
 
 /// «Administración»: un cuadro por cada apartado que el usuario puede ver.
 ///
@@ -26,9 +25,6 @@ class AdminScreen extends StatelessWidget {
       if (menu.companyProfile)
         _AdminCard('Mi empresa', 'Nombre, contacto y comprobante', Icons.storefront_outlined,
             const Color(0xFFB7793F), (_) => const CompanyProfileScreen()),
-      if (menu.reports)
-        _AdminCard('Reportes', 'Ventas, servicios, ganancias…', Icons.bar_chart, const Color(0xFF0EA5E9),
-            (_) => const AdminPage(title: 'Reportes', child: ReportsScreen())),
       if (menu.barbers)
         _AdminCard('Personal', 'Barberos y demás personal', Icons.badge_outlined, const Color(0xFFE11D48),
             (_) => const AdminPage(title: 'Personal', child: BarbersScreen())),

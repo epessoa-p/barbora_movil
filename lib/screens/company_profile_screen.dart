@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
@@ -10,9 +11,9 @@ import '../theme/barbora_theme.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/error_view.dart';
 
-/// «Mi empresa»: nombre, contacto y pie del comprobante. Sin `settings.edit`
-/// se ve pero no se guarda. El logo se cambia desde la web, y el NIT no se
-/// edita (con él se verifica a quien pide soporte).
+/// «Mi empresa»: logo, nombre, contacto y pie del comprobante. Sin
+/// `settings.edit` se ve pero no se guarda. El NIT no se edita (con él se
+/// verifica a quien pide soporte).
 class CompanyProfileScreen extends StatefulWidget {
   const CompanyProfileScreen({super.key});
 
@@ -32,6 +33,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   bool _loading = true;
 
   bool _saving = false;
+  bool _uploadingLogo = false;
   final _errors = <String, String?>{};
   String? _error;
 
@@ -60,7 +62,11 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
     _phone.text = c.phone ?? '';
     _email.text = c.email ?? '';
     _footer.text = c.receiptFooter ?? '';
+    _cashCountMode = c.cashCountMode;
   }
+
+  /// Cómo se cierra caja: «total» o «denominations».
+  String _cashCountMode = 'total';
 
   Future<void> _load() async {
     setState(() {
@@ -94,6 +100,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         'phone': _phone.text.trim(),
         'email': _email.text.trim(),
         'receipt_footer': _footer.text.trim(),
+        'cash_count_mode': _cashCountMode,
       });
       if (!mounted) return;
 
@@ -109,13 +116,61 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        for (final f in ['name', 'address', 'phone', 'email', 'receipt_footer']) {
+        for (final f in ['name', 'address', 'phone', 'email', 'receipt_footer', 'cash_count_mode']) {
           _errors[f] = e.firstErrorFor(f);
         }
         _error = e.errors.isEmpty ? e.message : null;
       });
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Elige una imagen de la galería y la sube como logo. Se reduce en el
+  /// teléfono para no pasar del límite de 1 MB del servidor.
+  Future<void> _pickLogo() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+
+    await _sendLogo({}, picked.path);
+  }
+
+  Future<void> _removeLogo() => _sendLogo({'remove_logo': '1'}, null);
+
+  Future<void> _sendLogo(Map<String, String> fields, String? path) async {
+    setState(() => _uploadingLogo = true);
+
+    try {
+      final res = await context.read<ApiClient>().upload(
+        '/admin/company/logo',
+        fields: fields,
+        fileField: path == null ? null : 'logo',
+        filePath: path,
+      );
+      if (!mounted) return;
+
+      setState(() => _company = CompanyProfile.fromJson(res['data'] as Map<String, dynamic>));
+
+      // El logo sale en el menú lateral y en el comprobante.
+      await context.read<AuthController>().refreshMe();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res['message'] as String? ?? 'Logo actualizado.')),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.firstErrorFor('logo') ?? e.message),
+        backgroundColor: BarboraTheme.copperDark,
+      ));
+    } finally {
+      if (mounted) setState(() => _uploadingLogo = false);
     }
   }
 
@@ -154,10 +209,32 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                   if (c.taxId != null && c.taxId!.isNotEmpty)
                     Text('${c.taxIdLabel ?? 'NIT'}: ${c.taxId}',
                         style: const TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 2),
+                  if (canEdit)
+                    Wrap(
+                      spacing: 4,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _uploadingLogo ? null : _pickLogo,
+                          icon: _uploadingLogo
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: BarboraTheme.copper),
+                                )
+                              : const Icon(Icons.image_outlined, size: 18),
+                          label: Text(c.logoUrl == null ? 'Subir logo' : 'Cambiar logo'),
+                        ),
+                        if (c.logoUrl != null)
+                          TextButton(
+                            onPressed: _uploadingLogo ? null : _removeLogo,
+                            style: TextButton.styleFrom(foregroundColor: BarboraTheme.textMuted),
+                            child: const Text('Quitar'),
+                          ),
+                      ],
+                    ),
                   const Text(
-                    'El logo se cambia desde la web.',
-                    style: TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted),
+                    'PNG, JPG o WEBP, de hasta 1 MB.',
+                    style: TextStyle(fontSize: 12, color: BarboraTheme.textMuted),
                   ),
                 ],
               ),
@@ -205,7 +282,39 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
             errorText: _errors['receipt_footer'],
           ),
         ),
-        AdminFormError(_error),
+        const SizedBox(height: 22),
+        const Text('Cierre de caja', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        const SizedBox(height: 2),
+        const Text(
+          'Cómo se cuenta el efectivo al cerrar un turno. Solo se arquea el efectivo: '
+          'QR, tarjeta y transferencias están en el banco.',
+          style: TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted),
+        ),
+        RadioGroup<String>(
+          groupValue: _cashCountMode,
+          onChanged: (v) {
+            if (canEdit && v != null) setState(() => _cashCountMode = v);
+          },
+          child: Column(
+            children: [
+              RadioListTile<String>(
+                value: 'total',
+                enabled: canEdit,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Solo el total contado'),
+                subtitle: const Text('Se escribe cuánto efectivo hay en el cajón.'),
+              ),
+              RadioListTile<String>(
+                value: 'denominations',
+                enabled: canEdit,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Contar billetes y monedas'),
+                subtitle: const Text('Se indica cuántos hay de cada valor y el total se calcula solo.'),
+              ),
+            ],
+          ),
+        ),
+        AdminFormError(_errors['cash_count_mode'] ?? _error),
         if (canEdit) ...[
           const SizedBox(height: 20),
           AdminSaveButton(saving: _saving, label: 'Guardar cambios', onPressed: _save),

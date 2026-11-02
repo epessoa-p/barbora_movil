@@ -5,7 +5,9 @@ import '../models/appointment.dart';
 import '../models/me.dart';
 import '../state/agenda_controller.dart';
 import '../state/auth_controller.dart';
+import '../state/cash_controller.dart';
 import '../theme/barbora_theme.dart';
+import '../widgets/admin_widgets.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/error_view.dart';
 import 'admin_screen.dart';
@@ -19,8 +21,9 @@ import 'inventory_screen.dart';
 import 'commissions_screen.dart';
 import 'new_appointment_screen.dart';
 import 'profile_screen.dart';
+import 'reports_screen.dart';
 import 'sales_screen.dart';
-import 'services_screen.dart';
+import 'services_hub_screen.dart';
 
 /// Las secciones de la app y las acciones rápidas, con lo que exige cada una.
 ///
@@ -45,13 +48,24 @@ class AppMenu {
 
   bool get newAppointment => _allows('agenda', 'appointments.create');
 
-  /// Vacaciones, feriados y descansos.
+  /// Vacaciones, feriados y descansos: pestaña de abajo de la agenda.
   bool get blocks => _allows('agenda', 'agenda_blocks.view');
+
+  /// Recordatorios de cita: pestaña de abajo de la agenda. Como en la web,
+  /// además de la agenda exigen el módulo «reservas_online».
+  bool get reminders => agenda && (me?.hasModule('reservas_online') ?? false);
 
   bool get clients => _allows('clientes', 'clients.view');
 
   /// Los servicios se consultan dentro del módulo de agenda.
   bool get services => _allows('agenda', 'services.view');
+
+  /// Pestaña de abajo de Servicios: administrar las categorías.
+  bool get serviceCategories => _allows('agenda', 'service_categories.view');
+
+  /// Pestaña de abajo de Servicios: el catálogo público (es configuración de
+  /// la barbería, como «Mi empresa»).
+  bool get catalog => me?.can('settings.view') ?? false;
 
   /// Productos y existencias: entradas, salidas, ajustes.
   bool get inventory => _allows('inventario', 'products.view');
@@ -74,7 +88,7 @@ class AppMenu {
   /// Las cajas registradoras (no el turno): módulo «caja» y `cajas.view`.
   bool get cajas => _allows('caja', 'cajas.view');
 
-  bool get admin => companyProfile || reports || barbers || branches || cajas || paymentMethods;
+  bool get admin => companyProfile || barbers || branches || cajas || paymentMethods;
 
   /// Un barbero que solo atiende no tiene por qué ver el cajón.
   bool get cash => _allows('caja', 'cash.view');
@@ -90,13 +104,14 @@ class AppMenu {
   bool get reports => _allows('estadisticas', 'reports.view');
 
   // El perfil ya no es una sección del menú: se abre con el botón de arriba a
-  // la derecha (ver HomeShell). Personal y Reportes se abren desde
-  // «Administración».
+  // la derecha (ver HomeShell). Reportes y Administración van abajo del menú
+  // lateral, junto a «Cerrar sesión»; Personal, dentro de Administración.
   List<Section> get sections => [
         // El Inicio va primero: con él, la app abre ahí; sin él, en la Agenda.
         if (home) Section.home,
         if (agenda) Section.agenda,
-        if (blocks) Section.blocks,
+        // Los bloqueos van en la agenda; solo salen sueltos si no hay agenda.
+        if (blocks && !agenda) Section.blocks,
         if (clients) Section.clients,
         if (services) Section.services,
         if (inventory) Section.inventory,
@@ -128,7 +143,7 @@ enum Section {
         Section.agenda => const AgendaScreen(),
         Section.blocks => const BlocksScreen(),
         Section.clients => const ClientsScreen(),
-        Section.services => const ServicesScreen(),
+        Section.services => const ServicesHubScreen(),
         Section.inventory => const InventoryScreen(),
         Section.cash => const CashScreen(),
         Section.sales => const SalesScreen(),
@@ -146,6 +161,18 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   Section? _current;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // El botón de caja de arriba necesita saber si el turno está abierto
+    // desde el principio, sin esperar a que se abra la sección Caja.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (AppMenu(context.read<AuthController>().me).cash) context.read<CashController>().load();
+    });
+  }
 
   /// Secciones ya abiertas: se conservan montadas para no recargar al volver,
   /// pero no se monta ninguna hasta que se visita (cada una pide sus datos).
@@ -259,6 +286,9 @@ class _HomeShellState extends State<HomeShell> {
           ],
         ),
         actions: [
+          // La caja, a mano: dice si el turno está abierto y lleva a «Caja».
+          if (menu.cash)
+            _CashStatusButton(onTap: () => setState(() => _current = Section.cash)),
           // Acceso al perfil: círculo con icono de persona, arriba a la derecha.
           Padding(
             padding: const EdgeInsets.only(right: 10),
@@ -283,16 +313,8 @@ class _HomeShellState extends State<HomeShell> {
         onCheckout: _checkout,
       ),
 
-      floatingActionButton: current == Section.agenda && menu.newAppointment
-          ? FloatingActionButton.extended(
-              onPressed: _newAppointment,
-              backgroundColor: BarboraTheme.copper,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Nueva cita', style: TextStyle(fontWeight: FontWeight.w700)),
-            )
-          : null,
-
+      // «Nueva cita» lo pone la propia agenda: solo en su pestaña Agenda, no en
+      // Recordatorios ni Bloqueos.
       body: SafeArea(
         top: false,
         child: current == null
@@ -309,11 +331,64 @@ class _HomeShellState extends State<HomeShell> {
                   for (final s in sections)
                     !_visited.contains(s)
                         ? const SizedBox.shrink()
-                        : s == Section.home
-                            ? _home(menu)
-                            : s.screen,
+                        : switch (s) {
+                            Section.home => _home(menu),
+                            Section.agenda => AgendaScreen(
+                                onNewAppointment: menu.newAppointment ? _newAppointment : null,
+                              ),
+                            _ => s.screen,
+                          },
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// Botón de la barra superior: la caja y si su turno está abierto o cerrado.
+class _CashStatusButton extends StatelessWidget {
+  const _CashStatusButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cash = context.watch<CashController>();
+    final open = cash.hasOpenSession;
+    final color = open ? const Color(0xFF22C55E) : const Color(0xFFF87171);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 2),
+      child: Tooltip(
+        message: open ? 'Caja abierta' : 'Caja cerrada',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.point_of_sale, size: 17, color: Colors.white),
+                const SizedBox(width: 6),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  open ? 'Abierta' : 'Cerrada',
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -396,6 +471,18 @@ class _AppDrawer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
             child: Column(
               children: [
+                if (menu.reports)
+                  _DrawerItem(
+                    icon: Icons.bar_chart_outlined,
+                    label: 'Reportes',
+                    onTap: () {
+                      Navigator.of(context)
+                        ..pop() // cierra el menú
+                        ..push(MaterialPageRoute(
+                          builder: (_) => const AdminPage(title: 'Reportes', child: ReportsScreen()),
+                        ));
+                    },
+                  ),
                 if (menu.admin)
                   _DrawerItem(
                     icon: Icons.admin_panel_settings_outlined,

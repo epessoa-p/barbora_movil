@@ -33,6 +33,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _loading = true;
   bool _showProducts = false;
 
+  /// Método elegido en «Forma de pago»: la hoja de cobro le pone el total.
+  /// Null = el primero que entre al cajón.
+  String? _method;
+
+  /// Pago mixto: la hoja de cobro reparte el total entre varias formas.
+  bool _mixed = false;
+
+  /// Los métodos activos de la barbería (llegan en /me).
+  List<PaymentMethod> get _methods =>
+      context.read<AuthController>().me?.paymentMethods ?? const [];
+
   /// Si el plan no incluye inventario, la pestaña de productos ni aparece.
   bool get _hasInventory =>
       context.read<AuthController>().me?.hasModule('inventario') ?? false;
@@ -209,7 +220,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           : _TotalBar(
               total: checkout.total,
               symbol: symbol,
-              onPay: () => _payments(context, checkout, symbol),
+              // Sin métodos de pago no hay con qué cobrar: el aviso lo explica.
+              onPay: _methods.isEmpty ? null : () => _payments(context, checkout, symbol),
             ),
     );
   }
@@ -247,6 +259,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               symbol: symbol,
               onSet: checkout.setTip,
             ),
+          ),
+          const SizedBox(height: 18),
+          _PaymentMethodPicker(
+            methods: _methods,
+            selected: _method,
+            onSelected: (slug) => setState(() => _method = slug),
+            mixed: _mixed,
+            onMixed: (v) => setState(() => _mixed = v),
           ),
           const SizedBox(height: 18),
         ],
@@ -344,7 +364,109 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PaymentSheet(symbol: symbol),
+      builder: (_) => _PaymentSheet(
+        symbol: symbol,
+        // Sin pago mixto, la hoja solo trae el método elegido, con el total.
+        methods: _mixed ? _methods : _methods.where((m) => m.slug == _currentMethod).toList(),
+        initialMethod: _currentMethod,
+      ),
+    );
+  }
+
+  /// El método elegido, o el primero que entre al cajón.
+  String? get _currentMethod =>
+      _method ??
+      _methods.where((m) => m.countsAsCash).map((m) => m.slug).firstOrNull ??
+      _methods.firstOrNull?.slug;
+}
+
+/// «Forma de pago»: los métodos de la barbería a la vista antes de cobrar.
+/// El elegido se lleva el total. Con «Pago mixto» la hoja de cobro deja
+/// repartirlo entre varias formas.
+class _PaymentMethodPicker extends StatelessWidget {
+  const _PaymentMethodPicker({
+    required this.methods,
+    required this.selected,
+    required this.onSelected,
+    required this.mixed,
+    required this.onMixed,
+  });
+
+  final List<PaymentMethod> methods;
+  final String? selected;
+  final ValueChanged<String> onSelected;
+  final bool mixed;
+  final ValueChanged<bool> onMixed;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = selected ??
+        methods.where((m) => m.countsAsCash).map((m) => m.slug).firstOrNull ??
+        methods.firstOrNull?.slug;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 2, bottom: 10),
+          child: Text(
+            'FORMA DE PAGO',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+              color: BarboraTheme.textMuted,
+            ),
+          ),
+        ),
+        if (methods.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: BarboraTheme.copperDark),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'La barbería no tiene métodos de pago activos. '
+                      'Actívalos en Administración › Métodos de pago.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final m in methods)
+                ChoiceChip(
+                  label: Text(m.name),
+                  avatar: Icon(
+                    m.countsAsCash ? Icons.payments_outlined : Icons.credit_card,
+                    size: 17,
+                  ),
+                  selected: m.slug == current,
+                  selectedColor: BarboraTheme.copper.withValues(alpha: .15),
+                  onSelected: (_) => onSelected(m.slug),
+                ),
+            ],
+          ),
+        if (methods.length > 1)
+          SwitchListTile(
+            value: mixed,
+            onChanged: onMixed,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            activeThumbColor: BarboraTheme.copper,
+            title: const Text('Pago mixto', style: TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: const Text('Repartir el total entre varias formas de pago.'),
+          ),
+      ],
     );
   }
 }
@@ -946,7 +1068,7 @@ class _TotalBar extends StatelessWidget {
 
   final double total;
   final String symbol;
-  final VoidCallback onPay;
+  final VoidCallback? onPay;
 
   @override
   Widget build(BuildContext context) {
@@ -975,9 +1097,13 @@ class _TotalBar extends StatelessWidget {
 
 /// Reparto del cobro entre métodos de pago.
 class _PaymentSheet extends StatefulWidget {
-  const _PaymentSheet({required this.symbol});
+  const _PaymentSheet({required this.symbol, required this.methods, this.initialMethod});
 
   final String symbol;
+  final List<PaymentMethod> methods;
+
+  /// El elegido en «Forma de pago»; se le pone el total.
+  final String? initialMethod;
 
   @override
   State<_PaymentSheet> createState() => _PaymentSheetState();
@@ -992,21 +1118,19 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   void initState() {
     super.initState();
 
-    // Los métodos los define la barbería y llegan en /me; el fallback solo
-    // actúa si la sesión todavía no cargó.
-    final fromSession = context.read<AuthController>().me?.paymentMethods ?? const [];
-    _methods = fromSession.isEmpty ? PaymentMethod.fallback : fromSession;
+    // Los métodos los define la barbería y llegan en /me. Sin ninguno, la
+    // pantalla de cobro no deja abrir esta hoja.
+    _methods = widget.methods;
 
     _controllers = {
       for (final m in _methods) m.slug: TextEditingController(),
     };
 
-    // Se rellena el primero que entre al cajón —normalmente el efectivo—, que
-    // es como se cobra casi siempre.
-    _primary = _methods.firstWhere(
-      (m) => m.countsAsCash,
-      orElse: () => _methods.first,
-    ).slug;
+    // Se rellena el elegido en «Forma de pago»; si no, el primero que entre
+    // al cajón —normalmente el efectivo—, que es como se cobra casi siempre.
+    _primary = _methods.any((m) => m.slug == widget.initialMethod)
+        ? widget.initialMethod!
+        : _methods.firstWhere((m) => m.countsAsCash, orElse: () => _methods.first).slug;
 
     final total = context.read<CheckoutController>().total;
     _controllers[_primary]!.text = total.toStringAsFixed(2);
@@ -1130,6 +1254,8 @@ class _PaymentSheetState extends State<_PaymentSheet> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: TextField(
                     controller: _controllers[method.slug],
+                    // Con un solo método el importe es el total: no hay nada que repartir.
+                    readOnly: _methods.length == 1,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) => setState(() {}),
                     onTap: () => setState(() => _primary = method.slug),

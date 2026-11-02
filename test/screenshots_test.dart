@@ -123,6 +123,59 @@ void main() {
         });
   });
 
+  testWidgets('04c agenda del mes', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '04c_agenda_mes',
+        session: s,
+        routes: {'/me': _me, '/my/agenda': _agenda, '/agenda': _agendaShop},
+        afterLoad: (t) async {
+          await t.tap(find.text('La barbería'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Mes'));
+          await t.pumpAndSettle();
+
+          // Las citas de prueba son de septiembre de 2026: se retrocede hasta
+          // ese mes, sea cual sea el día en que corre el test.
+          final now = DateTime.now();
+          final months = (now.year - 2026) * 12 + now.month - 9;
+          for (var i = 0; i < months; i++) {
+            await t.tap(find.byIcon(Icons.chevron_left));
+            await t.pumpAndSettle();
+          }
+        });
+  });
+
+  testWidgets('04d recordatorios', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+    final meReservas = <String, Object>{
+      ..._me,
+      'plan': {
+        'name': 'Premium',
+        'modules': [...((_me['plan']! as Map)['modules'] as List), 'reservas_online'],
+      },
+    };
+    final cita = (_agendaShop['data']! as List).first as Map<String, dynamic>;
+
+    await shoot(tester, '04d_recordatorios',
+        session: s,
+        routes: {
+          '/me': meReservas,
+          '/my/agenda': _agenda,
+          '/agenda': _agendaShop,
+          '/reminders': {
+            'days': 1,
+            'data': [
+              {...cita, 'whatsapp_url': 'https://wa.me/59171234567?text=Hola'},
+              {...cita, 'id': 999, 'reminded_at': '2026-09-25T18:00:00-04:00', 'whatsapp_url': null},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openAgendaTab(t, 'Recordatorios');
+        });
+  });
+
   testWidgets('04b agenda de la semana', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 
@@ -244,6 +297,47 @@ void main() {
         });
   });
 
+  testWidgets('08b cerrar caja contando billetes', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+    final me = <String, Object>{
+      ..._meCajero,
+      'company': {
+        ...(_meCajero['company']! as Map<String, dynamic>),
+        'cash_count_mode': 'denominations',
+        'cash_denominations': {
+          'bills': [200.0, 100.0, 50.0, 20.0, 10.0],
+          'coins': [5.0, 2.0, 1.0, 0.5, 0.2, 0.1],
+        },
+      },
+    };
+    final session = {
+      ...(_cashSession['data']! as Map<String, dynamic>),
+      'by_payment_method': {
+        'efectivo': {'income': 230.0, 'expense': 35.0, 'count': 4, 'label': 'Efectivo', 'counts_as_cash': true},
+        'qr': {'income': 120.0, 'expense': 0.0, 'count': 2, 'label': 'QR', 'counts_as_cash': false},
+        'tarjeta': {'income': 50.0, 'expense': 0.0, 'count': 1, 'label': 'Tarjeta', 'counts_as_cash': false},
+      },
+    };
+
+    await shoot(tester, '08b_cerrar_caja_billetes',
+        session: s,
+        routes: {
+          '/me': me,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/cash/session': {'data': session},
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Caja');
+          await t.tap(find.text('Cerrar turno'));
+          await t.pumpAndSettle();
+          await t.enterText(find.widgetWithText(TextField, 'Bs 200'), '1');
+          await t.enterText(find.widgetWithText(TextField, 'Bs 50'), '1');
+          await t.enterText(find.widgetWithText(TextField, 'Bs 20'), '2');
+          await t.pumpAndSettle();
+        });
+  });
+
   testWidgets('10 menu lateral', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 
@@ -312,7 +406,14 @@ void main() {
     await shoot(tester, '12_cobro',
         session: s,
         routes: {
-          '/me': _meCompleto,
+          '/me': {
+            ..._meCompleto,
+            'payment_methods': [
+              {'slug': 'efectivo', 'name': 'EFECTIVO', 'counts_as_cash': true, 'requires_reference': false},
+              {'slug': 'qr', 'name': 'QR', 'counts_as_cash': false, 'requires_reference': true},
+              {'slug': 'tarjeta', 'name': 'TARJETA', 'counts_as_cash': false, 'requires_reference': false},
+            ],
+          },
           '/my/agenda': _agenda,
           '/agenda': _agenda,
           '/services': {
@@ -333,7 +434,12 @@ void main() {
           // Dos servicios en la comanda.
           await t.tap(find.text('Corte clásico'));
           await t.pumpAndSettle();
-          await t.tap(find.text('Barba'));
+          // Con la comanda y la forma de pago, el catálogo queda más abajo.
+          await t.dragUntilVisible(find.text('Barba'), find.byType(ListView).last, const Offset(0, -200));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Barba').last);
+          await t.pumpAndSettle();
+          await t.dragUntilVisible(find.text('Agregar').first, find.byType(ListView).last, const Offset(0, 200));
           await t.pumpAndSettle();
           // Descuento.
           await t.tap(find.text('Agregar').first);
@@ -353,10 +459,48 @@ void main() {
           );
           await t.tap(find.widgetWithText(FilledButton, 'Aplicar'));
           await t.pumpAndSettle();
-          // Cliente.
+          // Cliente (arriba de todo).
+          await t.drag(find.byType(ListView).last, const Offset(0, 600));
+          await t.pumpAndSettle();
           await t.tap(find.text('Cliente'));
           await t.pumpAndSettle();
           await t.tap(find.text('Carlos Mendoza'));
+          await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('13b catalogo publico', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+    final me = <String, Object>{
+      ..._meCompleto,
+      'permissions': [
+        ...(_meCompleto['permissions']! as List),
+        'settings.view',
+        'settings.edit',
+        'service_categories.view',
+      ],
+    };
+
+    await shoot(tester, '13b_catalogo',
+        session: s,
+        routes: {
+          '/me': me,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/services': {'data': <Object>[]},
+          '/admin/catalog': {
+            'data': {
+              'enabled': true,
+              'show_products': false,
+              'url': 'https://barbora.sczsoft.net/catalogo/x7k2m9qp4ab1',
+              'poster_url': 'https://barbora.sczsoft.net/catalogo/x7k2m9qp4ab1/afiche',
+              'services_count': 12,
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Servicios');
+          await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Catálogo')));
           await t.pumpAndSettle();
         });
   });
@@ -448,7 +592,7 @@ void main() {
         session: s,
         routes: {'/me': _meCompleto, '/my/agenda': _agenda, '/agenda': _agenda},
         afterLoad: (t) async {
-          await openAdmin(t, 'Reportes');
+          await openSection(t, 'Reportes');
         });
   });
 
@@ -520,7 +664,7 @@ void main() {
           },
         },
         afterLoad: (t) async {
-          await openAdmin(t, 'Reportes');
+          await openSection(t, 'Reportes');
           await t.tap(find.text('Ventas'));
           await t.pumpAndSettle();
         });
@@ -642,7 +786,7 @@ void main() {
         session: s,
         routes: {'/me': meBloqueos, '/my/agenda': _agenda, '/agenda': _agenda, '/agenda-blocks': bloqueos},
         afterLoad: (t) async {
-          await openSection(t, 'Bloqueos');
+          await openAgendaTab(t, 'Bloqueos');
         });
   });
 
@@ -653,7 +797,7 @@ void main() {
         session: s,
         routes: {'/me': meBloqueos, '/my/agenda': _agenda, '/agenda': _agenda, '/agenda-blocks': bloqueos},
         afterLoad: (t) async {
-          await openSection(t, 'Bloqueos');
+          await openAgendaTab(t, 'Bloqueos');
           await t.tap(find.text('Nuevo bloqueo'));
           await t.pumpAndSettle();
           await t.enterText(find.widgetWithText(TextField, 'Nombre'), 'Almuerzo');
@@ -1553,6 +1697,12 @@ Future<void> openSection(WidgetTester t, String label) async {
     scrollable: find.descendant(of: find.byType(Drawer), matching: find.byType(Scrollable)).first,
   );
   await t.tap(item);
+  await t.pumpAndSettle();
+}
+
+/// Toca una pestaña de la barra inferior de la agenda (Recordatorios, Bloqueos).
+Future<void> openAgendaTab(WidgetTester t, String label) async {
+  await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text(label)));
   await t.pumpAndSettle();
 }
 

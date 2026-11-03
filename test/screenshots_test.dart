@@ -469,6 +469,73 @@ void main() {
         });
   });
 
+  final meFinanzas = <String, Object>{
+    ..._meCompleto,
+    'permissions': [
+      ...(_meCompleto['permissions']! as List),
+      'expenses.view', 'expenses.create', 'accounts.view', 'accounts.create',
+      'expense_categories.view', 'purchases.view', 'purchases.create', 'suppliers.view',
+    ],
+    'plan': {
+      'name': 'Premium',
+      'modules': ['agenda', 'clientes', 'caja', 'pos', 'comisiones', 'estadisticas', 'inventario', 'finanzas'],
+    },
+  };
+
+  testWidgets('28 gastos', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '28_gastos',
+        session: s,
+        routes: {
+          '/me': meFinanzas,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/finance/expenses': {
+            'total': 655.0,
+            'data': [
+              {'id': 3, 'number': 'G-000003', 'description': 'Alquiler de noviembre', 'category': 'ALQUILER', 'amount': 500.0,
+                'spent_on': '2026-11-02', 'source': 'account', 'source_label': 'BANCO UNIÓN', 'can_cancel': true},
+              {'id': 2, 'number': 'G-000002', 'description': 'Almuerzo del equipo', 'category': 'COMIDA', 'amount': 120.0,
+                'spent_on': '2026-11-02', 'source': 'cash', 'source_label': 'Caja · T-000014', 'can_cancel': true},
+              {'id': 1, 'number': 'G-000001', 'description': 'Adelanto', 'category': 'PAGO A PERSONAL', 'payee': 'TANIA MOLINA',
+                'amount': 35.0, 'spent_on': '2026-11-01', 'source': 'cash', 'source_label': 'Caja · T-000013', 'can_cancel': true},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Finanzas');
+        });
+  });
+
+  testWidgets('29 nueva compra', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '29_nueva_compra',
+        session: s,
+        routes: {
+          '/me': meFinanzas,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/purchases': {'data': <Object>[], 'summary': {'total': 0.0, 'debt': 0.0}},
+          '/purchases/options': {
+            'suppliers': [{'id': 1, 'name': 'DISTRIBUIDORA NORTE'}],
+            'warehouses': [{'id': 1, 'name': 'ALMACÉN CENTRAL'}],
+            'default_warehouse_id': 1,
+            'products': [{'id': 1, 'name': 'CERA MATE', 'cost': 22.0, 'track_stock': true}],
+            'sources': ['account', 'cash'],
+            'accounts': [{'id': 1, 'name': 'BANCO UNIÓN', 'type': 'banco', 'type_label': 'Banco', 'balance': 1800.0, 'active': true}],
+            'open_sessions': [{'id': 14, 'number': 'T-000014', 'caja': 'CAJA PRINCIPAL', 'expected_cash': 295.0}],
+            'preferred_session_id': 14,
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Compras');
+          await t.tap(find.widgetWithText(FloatingActionButton, 'Nueva compra'));
+          await t.pumpAndSettle();
+        });
+  });
+
   testWidgets('13b catalogo publico', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
     final me = <String, Object>{

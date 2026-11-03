@@ -13,7 +13,10 @@ import 'expense_edit_screen.dart';
 /// Gastos: pagos a proveedores y personal, servicios, comida, pasajes… Salen
 /// de una cuenta o de la caja abierta. Se anulan, no se borran.
 class ExpensesScreen extends StatefulWidget {
-  const ExpensesScreen({super.key});
+  const ExpensesScreen({super.key, this.group});
+
+  /// La pestaña: null (todos), «proveedor», «personal» o «basicos».
+  final String? group;
 
   @override
   State<ExpensesScreen> createState() => _ExpensesScreenState();
@@ -51,6 +54,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       final body = await context.read<ApiClient>().get('/finance/expenses', query: {
         'from': apiDate(_range.start),
         'to': apiDate(_range.end),
+        'group': ?widget.group,
       });
       if (!mounted) return;
       setState(() {
@@ -80,7 +84,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   Future<void> _new() async {
     final saved = await Navigator.of(context).push<ExpenseItem>(
-      MaterialPageRoute(builder: (_) => const ExpenseEditScreen()),
+      MaterialPageRoute(builder: (_) => ExpenseEditScreen(group: widget.group)),
     );
     if (saved == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gasto ${saved.number} registrado.')));

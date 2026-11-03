@@ -148,6 +148,7 @@ class ExpenseCategoryItem {
     required this.id,
     required this.name,
     this.payee = 'ninguno',
+    this.recurring = false,
     this.active = true,
     this.expensesCount = 0,
   });
@@ -155,6 +156,9 @@ class ExpenseCategoryItem {
   final int id;
   final String name;
   final String payee;
+
+  /// Servicio básico / recurrente: alquiler, luz, agua… (mensual o anual).
+  final bool recurring;
   final bool active;
   final int expensesCount;
 
@@ -162,6 +166,7 @@ class ExpenseCategoryItem {
         id: j['id'] as int,
         name: j['name'] as String? ?? '',
         payee: j['payee'] as String? ?? 'ninguno',
+        recurring: j['recurring'] as bool? ?? false,
         active: j['active'] as bool? ?? true,
         expensesCount: j['expenses_count'] as int? ?? 0,
       );

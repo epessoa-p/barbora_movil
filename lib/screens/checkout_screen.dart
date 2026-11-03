@@ -40,6 +40,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// Pago mixto: la hoja de cobro reparte el total entre varias formas.
   bool _mixed = false;
 
+  /// Con pago mixto, las formas marcadas (las pills son de selección múltiple).
+  Set<String> _mixedSlugs = {};
+
   /// Los métodos activos de la barbería (llegan en /me).
   List<PaymentMethod> get _methods =>
       context.read<AuthController>().me?.paymentMethods ?? const [];
@@ -201,6 +204,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // Color sólido además del degradado: con el fondo transparente del tema,
+        // en algunos teléfonos la barra quedaba blanca y el texto no se leía.
+        backgroundColor: BarboraTheme.inkSoft,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
         flexibleSpace: const DecoratedBox(
           decoration: BoxDecoration(gradient: BarboraTheme.inkGradient),
         ),
@@ -264,9 +272,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           _PaymentMethodPicker(
             methods: _methods,
             selected: _method,
-            onSelected: (slug) => setState(() => _method = slug),
+            onSelected: (slug) => _mixed ? _toggleMixed(slug) : setState(() => _method = slug),
             mixed: _mixed,
-            onMixed: (v) => setState(() => _mixed = v),
+            mixedSelected: _mixedSlugs,
+            // Al activar el mixto se arranca con la forma que ya estaba elegida.
+            onMixed: (v) => setState(() {
+              _mixed = v;
+              if (v) _mixedSlugs = {?_currentMethod};
+            }),
           ),
           const SizedBox(height: 18),
         ],
@@ -366,8 +379,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => _PaymentSheet(
         symbol: symbol,
-        // Sin pago mixto, la hoja solo trae el método elegido, con el total.
-        methods: _mixed ? _methods : _methods.where((m) => m.slug == _currentMethod).toList(),
+        // Sin pago mixto, la hoja solo trae el método elegido, con el total;
+        // con pago mixto, solo los marcados.
+        methods: _mixed
+            ? _methods.where((m) => _mixedSlugs.contains(m.slug)).toList()
+            : _methods.where((m) => m.slug == _currentMethod).toList(),
         initialMethod: _currentMethod,
       ),
     );
@@ -378,6 +394,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _method ??
       _methods.where((m) => m.countsAsCash).map((m) => m.slug).firstOrNull ??
       _methods.firstOrNull?.slug;
+
+  /// Pago mixto: marca o desmarca una forma. Siempre queda al menos una.
+  void _toggleMixed(String slug) => setState(() {
+        if (!_mixedSlugs.remove(slug)) _mixedSlugs.add(slug);
+        if (_mixedSlugs.isEmpty) _mixedSlugs.add(slug);
+      });
 }
 
 /// «Forma de pago»: los métodos de la barbería a la vista antes de cobrar.
@@ -389,13 +411,17 @@ class _PaymentMethodPicker extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     required this.mixed,
+    required this.mixedSelected,
     required this.onMixed,
   });
 
   final List<PaymentMethod> methods;
   final String? selected;
+
+  /// Sin mixto, elige la forma; con mixto, la marca o la desmarca.
   final ValueChanged<String> onSelected;
   final bool mixed;
+  final Set<String> mixedSelected;
   final ValueChanged<bool> onMixed;
 
   @override
@@ -444,16 +470,24 @@ class _PaymentMethodPicker extends StatelessWidget {
             runSpacing: 8,
             children: [
               for (final m in methods)
-                ChoiceChip(
-                  label: Text(m.name),
-                  avatar: Icon(
-                    m.countsAsCash ? Icons.payments_outlined : Icons.credit_card,
-                    size: 17,
-                  ),
-                  selected: m.slug == current,
-                  selectedColor: BarboraTheme.copper.withValues(alpha: .15),
-                  onSelected: (_) => onSelected(m.slug),
-                ),
+                // Con pago mixto son casillas (varias a la vez); sin él, una sola.
+                mixed
+                    ? FilterChip(
+                        label: Text(m.name),
+                        selected: mixedSelected.contains(m.slug),
+                        selectedColor: BarboraTheme.copper.withValues(alpha: .15),
+                        onSelected: (_) => onSelected(m.slug),
+                      )
+                    : ChoiceChip(
+                        label: Text(m.name),
+                        avatar: Icon(
+                          m.countsAsCash ? Icons.payments_outlined : Icons.credit_card,
+                          size: 17,
+                        ),
+                        selected: m.slug == current,
+                        selectedColor: BarboraTheme.copper.withValues(alpha: .15),
+                        onSelected: (_) => onSelected(m.slug),
+                      ),
             ],
           ),
         if (methods.length > 1)
@@ -464,7 +498,9 @@ class _PaymentMethodPicker extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             activeThumbColor: BarboraTheme.copper,
             title: const Text('Pago mixto', style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Repartir el total entre varias formas de pago.'),
+            subtitle: Text(mixed
+                ? 'Marca las formas que usa el cliente; al cobrar repartes el total entre ellas.'
+                : 'Repartir el total entre varias formas de pago.'),
           ),
       ],
     );

@@ -18,6 +18,7 @@ class InventoryProduct {
     required this.trackStock,
     required this.isSellable,
     required this.active,
+    this.photoUrl,
     this.stock,
     this.stockLabel,
     this.lowStock = false,
@@ -40,6 +41,9 @@ class InventoryProduct {
   final bool trackStock;
   final bool isSellable;
   final bool active;
+
+  /// Foto del producto (sale en el catálogo público), o null.
+  final String? photoUrl;
 
   /// Null si no lleva control de existencias (no es lo mismo que cero).
   final double? stock;
@@ -68,6 +72,7 @@ class InventoryProduct {
         trackStock: json['track_stock'] as bool? ?? true,
         isSellable: json['is_sellable'] as bool? ?? true,
         active: json['active'] as bool? ?? true,
+        photoUrl: json['photo_url'] as String?,
         stock: (json['stock'] as num?)?.toDouble(),
         stockLabel: json['stock_label'] as String?,
         lowStock: json['low_stock'] as bool? ?? false,

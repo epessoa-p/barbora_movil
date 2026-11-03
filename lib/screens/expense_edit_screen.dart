@@ -14,7 +14,10 @@ import '../widgets/payment_source_picker.dart';
 /// Registrar un gasto: en qué, a quién (si la categoría lo pide), cuánto y de
 /// dónde sale el dinero. Devuelve el [ExpenseItem] guardado.
 class ExpenseEditScreen extends StatefulWidget {
-  const ExpenseEditScreen({super.key});
+  const ExpenseEditScreen({super.key, this.group});
+
+  /// Desde una pestaña (proveedor, personal, básicos): solo sus categorías.
+  final String? group;
 
   @override
   State<ExpenseEditScreen> createState() => _ExpenseEditScreenState();
@@ -64,12 +67,14 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
     });
 
     try {
-      final body = await context.read<ApiClient>().get('/finance/options');
+      final body = await context.read<ApiClient>().get('/finance/options', query: {'group': ?widget.group});
       if (!mounted) return;
       setState(() {
         _categories = (body['categories'] as List? ?? [])
             .map((e) => ExpenseCategoryItem.fromJson(e as Map<String, dynamic>))
             .toList();
+        // Con una sola categoría (pagos a proveedores, a personal) ya va elegida.
+        if (_categories.length == 1) _categoryId = _categories.first.id;
         _suppliers = PickOption.listOf(body['suppliers']);
         _staff = PickOption.listOf(body['staff']);
         _sources = PaymentSourceOptions.fromJson(body);

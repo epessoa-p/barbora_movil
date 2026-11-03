@@ -221,6 +221,11 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // Color sólido además del degradado: con el fondo transparente del tema,
+        // en algunos teléfonos la barra quedaba blanca y el texto no se leía.
+        backgroundColor: BarboraTheme.inkSoft,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
         flexibleSpace: const DecoratedBox(
           decoration: BoxDecoration(gradient: BarboraTheme.inkGradient),
         ),

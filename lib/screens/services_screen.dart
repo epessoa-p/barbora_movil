@@ -199,6 +199,20 @@ class _ServiceRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // La foto del servicio, si tiene (la misma del catálogo público).
+          if (service.photoUrl != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                service.photoUrl!,
+                width: 46,
+                height: 46,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox(width: 46, height: 46),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

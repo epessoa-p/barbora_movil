@@ -7,6 +7,7 @@ class Barber {
     this.cargoId,
     this.cargo,
     this.branchId,
+    this.extraBranchIds = const [],
     this.branch,
     this.phone,
     this.specialty,
@@ -25,6 +26,9 @@ class Barber {
 
   /// Sucursal base: ahí se numeran sus citas y ventas.
   final int? branchId;
+
+  /// Otras sucursales donde trabaja (un gerente de varios locales).
+  final List<int> extraBranchIds;
   final String? branch;
   final String? phone;
   final String? specialty;
@@ -52,6 +56,7 @@ class Barber {
         cargoId: json['cargo_id'] as int?,
         cargo: json['cargo'] as String?,
         branchId: json['branch_id'] as int?,
+        extraBranchIds: (json['extra_branch_ids'] as List? ?? const []).map((e) => e as int).toList(),
         branch: json['branch'] as String?,
         phone: json['phone'] as String?,
         specialty: json['specialty'] as String?,

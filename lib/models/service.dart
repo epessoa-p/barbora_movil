@@ -9,7 +9,11 @@ class Service {
     this.category,
     this.categoryId,
     this.active = true,
+    this.photoUrl,
   });
+
+  /// Foto del servicio (sale también en el catálogo público), o null.
+  final String? photoUrl;
 
   final int id;
   final String name;
@@ -29,5 +33,6 @@ class Service {
         category: json['category'] as String?,
         categoryId: json['category_id'] as int?,
         active: json['active'] as bool? ?? true,
+        photoUrl: json['photo_url'] as String?,
       );
 }

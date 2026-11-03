@@ -253,6 +253,20 @@ class _ProductTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
+              // La foto del producto, si tiene.
+              if (product.photoUrl != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    product.photoUrl!,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox(width: 44, height: 44),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

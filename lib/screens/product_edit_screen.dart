@@ -8,6 +8,7 @@ import '../core/upper_case.dart';
 import '../models/inventory.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
+import '../widgets/photo_picker_field.dart';
 
 /// Alta o edición de un producto. Devuelve el [InventoryProduct] guardado, o
 /// null si se canceló. Las existencias NO se tocan aquí: van por movimientos
@@ -26,6 +27,9 @@ class ProductEditScreen extends StatefulWidget {
 }
 
 class _ProductEditScreenState extends State<ProductEditScreen> {
+  /// La foto elegida (se sube al guardar) o «quitar la actual».
+  final _photo = PhotoChoice();
+
   late final _name = TextEditingController(text: widget.product?.name ?? '');
   late final _sku = TextEditingController(text: widget.product?.sku ?? '');
   late final _cost = TextEditingController(text: _money(widget.product?.costPrice));
@@ -84,12 +88,20 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
           ? await api.put('/inventory/products/${widget.product!.id}', body: body)
           : await api.post('/inventory/products', body: body);
 
+      var saved = InventoryProduct.fromJson(res['data'] as Map<String, dynamic>);
+
+      // La foto va aparte (multipart), una vez que el producto ya existe.
+      if (_photo.changed) {
+        final photo = await _photo.upload(api, '/inventory/products/${saved.id}/photo');
+        saved = InventoryProduct.fromJson(photo['data'] as Map<String, dynamic>);
+      }
+
       if (!mounted) return;
-      Navigator.of(context).pop(InventoryProduct.fromJson(res['data'] as Map<String, dynamic>));
+      Navigator.of(context).pop(saved);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        for (final f in ['name', 'sku', 'cost_price', 'sale_price', 'min_stock', 'unit']) {
+        for (final f in ['name', 'sku', 'cost_price', 'sale_price', 'min_stock', 'unit', 'photo']) {
           final msg = e.firstErrorFor(f);
           if (msg != null) _errors[f] = msg;
         }
@@ -114,6 +126,13 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
+          PhotoPickerField(
+            choice: _photo,
+            currentUrl: widget.product?.photoUrl,
+            help: 'Sale en la lista y, si el catálogo muestra productos, ahí.',
+            error: _errors['photo'],
+          ),
+          const SizedBox(height: 18),
           TextField(
             controller: _name,
             textCapitalization: TextCapitalization.characters,

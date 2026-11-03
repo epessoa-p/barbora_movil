@@ -61,7 +61,24 @@ class _HubScreenState extends State<HubScreen> {
   }
 }
 
-/// Finanzas: Gastos (por defecto), Cuentas y Categorías, según permisos.
+/// Gastos (sección propia del menú): todos (por defecto), a proveedores, a
+/// personal y servicios básicos (alquiler, luz, agua… lo mensual o anual).
+class ExpensesHubScreen extends StatelessWidget {
+  const ExpensesHubScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return HubScreen(tabs: [
+      HubTab('Gastos', Icons.receipt_long_outlined, Icons.receipt_long, () => const ExpensesScreen()),
+      HubTab('Proveedores', Icons.local_shipping_outlined, Icons.local_shipping,
+          () => const ExpensesScreen(group: 'proveedor')),
+      HubTab('Personal', Icons.badge_outlined, Icons.badge, () => const ExpensesScreen(group: 'personal')),
+      HubTab('Básicos', Icons.home_work_outlined, Icons.home_work, () => const ExpensesScreen(group: 'basicos')),
+    ]);
+  }
+}
+
+/// Finanzas: Cuentas (por defecto) y Categorías de gasto, según permisos.
 class FinanceHubScreen extends StatelessWidget {
   const FinanceHubScreen({super.key});
 
@@ -70,8 +87,6 @@ class FinanceHubScreen extends StatelessWidget {
     final menu = AppMenu(context.watch<AuthController>().me);
 
     return HubScreen(tabs: [
-      if (menu.expenses)
-        HubTab('Gastos', Icons.receipt_long_outlined, Icons.receipt_long, () => const ExpensesScreen()),
       if (menu.accounts)
         HubTab('Cuentas', Icons.account_balance_outlined, Icons.account_balance, () => const AccountsScreen()),
       if (menu.expenseCategories)

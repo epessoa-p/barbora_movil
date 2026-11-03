@@ -9,6 +9,7 @@ import '../models/block_options.dart';
 import '../models/service.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
+import '../widgets/photo_picker_field.dart';
 
 /// Alta o edición de un servicio: nombre, categoría, precio, duración,
 /// descripción y estado.
@@ -40,6 +41,9 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
   );
   late bool _active = widget.service?.active ?? true;
   late int? _categoryId = widget.service?.categoryId;
+
+  /// La foto elegida (se sube al guardar) o «quitar la actual».
+  final _photo = PhotoChoice();
 
   List<Option> _categories = const [];
 
@@ -97,12 +101,20 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
           ? await api.put('/services/${widget.service!.id}', body: payload)
           : await api.post('/services', body: payload);
 
+      var saved = Service.fromJson(body['data'] as Map<String, dynamic>);
+
+      // La foto va aparte (multipart), una vez que el servicio ya existe.
+      if (_photo.changed) {
+        final photo = await _photo.upload(api, '/services/${saved.id}/photo');
+        saved = Service.fromJson(photo['data'] as Map<String, dynamic>);
+      }
+
       if (!mounted) return;
-      Navigator.of(context).pop(Service.fromJson(body['data'] as Map<String, dynamic>));
+      Navigator.of(context).pop(saved);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        for (final f in ['name', 'price', 'duration_minutes', 'service_category_id']) {
+        for (final f in ['name', 'price', 'duration_minutes', 'service_category_id', 'photo']) {
           final msg = e.firstErrorFor(f);
           if (msg != null) _errors[f] = msg;
         }
@@ -128,6 +140,8 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
+          PhotoPickerField(choice: _photo, currentUrl: widget.service?.photoUrl, error: _errors['photo']),
+          const SizedBox(height: 18),
           TextField(
             controller: _name,
             textCapitalization: TextCapitalization.characters,

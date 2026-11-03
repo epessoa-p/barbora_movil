@@ -33,6 +33,9 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
 
   int? _cargoId;
   late int? _branchId = widget.barber?.branchId;
+
+  /// Sucursales adicionales (además de la base).
+  late final Set<int> _extraBranches = {...?widget.barber?.extraBranchIds};
   late bool _bookable = widget.barber?.bookable ?? true;
   late bool _active = widget.barber?.active ?? true;
 
@@ -99,6 +102,8 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
       'full_name': upperName(_name.text),
       'cargo_id': _cargoId,
       'branch_id': _branchId,
+      // Solo si hay varias sucursales: con una, no hay adicionales que elegir.
+      if (_branches.length > 1) 'extra_branch_ids': _extraBranches.where((id) => id != _branchId).toList(),
       'phone': _phone.text.trim(),
       'specialty': _specialty.text.trim(),
       'bookable': _bookable ? 1 : 0,
@@ -203,6 +208,25 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
               for (final b in _branches) DropdownMenuItem(value: b.id, child: Text(b.name)),
             ],
             onChanged: (v) => setState(() => _branchId = v),
+          ),
+          const SizedBox(height: 12),
+          // Un gerente o administrador de varios locales: en qué otras
+          // sucursales trabaja (lo que verá al vender, agendar, abrir caja).
+          const Text('Otras sucursales donde trabaja (opcional)',
+              style: TextStyle(fontSize: 13, color: BarboraTheme.textMuted)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              for (final b in _branches.where((b) => b.id != _branchId))
+                FilterChip(
+                  label: Text(b.name),
+                  selected: _extraBranches.contains(b.id),
+                  selectedColor: BarboraTheme.copper.withValues(alpha: .15),
+                  onSelected: (on) => setState(() => on ? _extraBranches.add(b.id) : _extraBranches.remove(b.id)),
+                ),
+            ],
           ),
           const SizedBox(height: 14),
         ],

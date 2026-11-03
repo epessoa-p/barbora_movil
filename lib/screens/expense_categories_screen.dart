@@ -90,7 +90,11 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
                             title: c.name,
                             dimmed: !c.active,
                             tags: [if (!c.active) const AdminTag('Inactiva')],
-                            subtitle: '${_payees[c.payee] ?? c.payee} · ${c.expensesCount} gastos',
+                            subtitle: [
+                              _payees[c.payee] ?? c.payee,
+                              if (c.recurring) 'Servicio básico',
+                              '${c.expensesCount} gastos',
+                            ].join(' · '),
                             onTap: canEdit ? () => _edit(c) : null,
                           ),
                         ),
@@ -124,6 +128,7 @@ class _CategorySheet extends StatefulWidget {
 class _CategorySheetState extends State<_CategorySheet> {
   late final _name = TextEditingController(text: widget.category?.name ?? '');
   late String _payee = widget.category?.payee ?? 'ninguno';
+  late bool _recurring = widget.category?.recurring ?? false;
   late bool _active = widget.category?.active ?? true;
   bool _busy = false;
   String? _error;
@@ -143,7 +148,12 @@ class _CategorySheetState extends State<_CategorySheet> {
 
     try {
       final api = context.read<ApiClient>();
-      final body = {'name': upperName(_name.text), 'payee': _payee, 'active': _active ? 1 : 0};
+      final body = {
+        'name': upperName(_name.text),
+        'payee': _payee,
+        'recurring': _recurring ? 1 : 0,
+        'active': _active ? 1 : 0,
+      };
       widget.category == null
           ? await api.post('/finance/expense-categories', body: body)
           : await api.put('/finance/expense-categories/${widget.category!.id}', body: body);
@@ -182,6 +192,14 @@ class _CategorySheetState extends State<_CategorySheet> {
                 DropdownMenuItem(value: p.key, child: Text(p.value)),
             ],
             onChanged: (v) => setState(() => _payee = v ?? _payee),
+          ),
+          SwitchListTile(
+            value: _recurring,
+            onChanged: (v) => setState(() => _recurring = v),
+            activeThumbColor: BarboraTheme.copper,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Servicio básico'),
+            subtitle: const Text('Alquiler, luz, agua… lo que se paga cada mes o cada año.'),
           ),
           if (widget.category != null)
             SwitchListTile(

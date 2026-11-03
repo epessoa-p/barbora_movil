@@ -646,6 +646,8 @@ void main() {
     expect(find.text('Editar servicio'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextField, 'Precio'), '65');
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Guardar cambios'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar cambios'));
     await tester.pumpAndSettle();
 

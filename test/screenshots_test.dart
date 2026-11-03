@@ -504,7 +504,7 @@ void main() {
           },
         },
         afterLoad: (t) async {
-          await openSection(t, 'Finanzas');
+          await openSection(t, 'Gastos');
         });
   });
 
@@ -569,6 +569,46 @@ void main() {
           await openSection(t, 'Servicios');
           await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Catálogo')));
           await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('12c cobro con pago mixto', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '12c_cobro_mixto',
+        session: s,
+        routes: {
+          '/me': {
+            ..._meCompleto,
+            'payment_methods': [
+              {'slug': 'efectivo', 'name': 'EFECTIVO', 'counts_as_cash': true, 'requires_reference': false},
+              {'slug': 'qr', 'name': 'QR', 'counts_as_cash': false, 'requires_reference': true},
+              {'slug': 'tarjeta', 'name': 'TARJETA', 'counts_as_cash': false, 'requires_reference': false},
+            ],
+          },
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/services': {
+            'data': [
+              {'id': 5, 'name': 'Corte clásico', 'duration_minutes': 30, 'price': 50.0},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Cobrar');
+          await t.tap(find.text('Corte clásico'));
+          await t.pumpAndSettle();
+          // Pago mixto: se marcan EFECTIVO (ya elegido) y QR.
+          await t.dragUntilVisible(find.text('Pago mixto'), find.byType(ListView).last, const Offset(0, -200));
+          await t.tap(find.text('Pago mixto'));
+          await t.pumpAndSettle();
+          await t.tap(find.widgetWithText(FilterChip, 'QR'));
+          await t.pumpAndSettle();
+          // La hoja de cobro solo trae las dos formas marcadas.
+          await t.tap(find.byType(FilledButton).last);
+          await t.pumpAndSettle();
+          expect(find.descendant(of: find.byType(BottomSheet), matching: find.text('TARJETA')), findsNothing);
+          expect(find.descendant(of: find.byType(BottomSheet), matching: find.text('QR')), findsOneWidget);
         });
   });
 

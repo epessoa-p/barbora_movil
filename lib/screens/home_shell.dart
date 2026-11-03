@@ -79,7 +79,8 @@ class AppMenu {
   bool get expenseCategories => _allows('finanzas', 'expense_categories.view');
 
   /// La sección: con cualquiera de sus pestañas.
-  bool get finance => expenses || accounts || expenseCategories;
+  /// La sección Finanzas: cuentas y categorías (los gastos tienen la suya).
+  bool get finance => accounts || expenseCategories;
 
   // ── Compras (módulo «inventario»; proveedores también con «finanzas») ──
   bool get purchases => _allows('inventario', 'purchases.view');
@@ -137,6 +138,7 @@ class AppMenu {
         if (inventory) Section.inventory,
         if (cash) Section.cash,
         if (sales) Section.sales,
+        if (expenses) Section.expenses,
         if (purchasesSection) Section.purchases,
         if (finance) Section.finance,
         if (commissions) Section.commissions,
@@ -152,6 +154,7 @@ enum Section {
   inventory('Inventario', Icons.inventory_2_outlined, Icons.inventory_2),
   cash('Caja', Icons.point_of_sale_outlined, Icons.point_of_sale),
   sales('Ventas', Icons.receipt_long_outlined, Icons.receipt_long),
+  expenses('Gastos', Icons.receipt_outlined, Icons.receipt),
   purchases('Compras', Icons.shopping_bag_outlined, Icons.shopping_bag),
   finance('Finanzas', Icons.account_balance_outlined, Icons.account_balance),
   commissions('Comisiones', Icons.payments_outlined, Icons.payments);
@@ -171,6 +174,7 @@ enum Section {
         Section.inventory => const InventoryScreen(),
         Section.cash => const CashScreen(),
         Section.sales => const SalesScreen(),
+        Section.expenses => const ExpensesHubScreen(),
         Section.purchases => const PurchasesHubScreen(),
         Section.finance => const FinanceHubScreen(),
         Section.commissions => const CommissionsScreen(),

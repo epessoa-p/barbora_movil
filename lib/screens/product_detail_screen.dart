@@ -149,6 +149,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (p.photoUrl != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      p.photoUrl!,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Text(
                   p.name,
                   style: const TextStyle(

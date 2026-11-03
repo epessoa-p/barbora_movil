@@ -207,7 +207,17 @@ class CartLine {
     this.personalId,
   });
 
-  /// servicio · producto
+  /// Venta rápida: un producto que no está cargado en el inventario. Se vende
+  /// con nombre y precio a mano, sin mover stock y sin costo conocido.
+  CartLine.quick({
+    required this.name,
+    required this.unitPrice,
+    this.quantity = 1,
+    this.personalId,
+  })  : type = 'rapido',
+        id = 0;
+
+  /// servicio · producto · rapido
   final String type;
   final int id;
   final String name;
@@ -219,9 +229,11 @@ class CartLine {
 
   bool get isService => type == 'servicio';
 
+  bool get isQuick => type == 'rapido';
+
   Map<String, dynamic> toRequest() => {
         'type': type,
-        'id': id,
+        if (isQuick) ...{'name': name, 'price': unitPrice} else 'id': id,
         'quantity': quantity,
         'personal_id': ?personalId,
       };

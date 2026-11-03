@@ -777,6 +777,217 @@ void main() {
         });
   });
 
+  testWidgets('16b reporte de ganancias', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    Map<String, Object> totals(double revenue, double cost) => {
+          'revenue': revenue,
+          'cost': cost,
+          'profit': revenue - cost,
+          'margin_pct': ((revenue - cost) / revenue * 1000).round() / 10,
+        };
+
+    await shoot(tester, '16b_reporte_ganancias',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/reports/profit': {
+            'period': {
+              'preset': 'mes',
+              'label': 'Este mes',
+              'presets': [
+                {'key': 'hoy', 'label': 'Hoy'},
+                {'key': 'semana', 'label': 'Esta semana'},
+                {'key': 'semana_pasada', 'label': 'Semana anterior'},
+                {'key': 'mes', 'label': 'Este mes'},
+              ],
+            },
+            'scope': 'ambos',
+            'include_quick': false,
+            'summary': totals(3240, 1180),
+            'products': {...totals(640, 380), 'sales': 14},
+            'services': {...totals(2600, 800), 'sales': 41},
+            'quick': {'revenue': 45.0, 'count': 2},
+            'daily': [
+              {'date': '2026-10-30', ...totals(410, 150)},
+              {'date': '2026-10-29', ...totals(520, 190)},
+            ],
+            'top_products': [
+              {'name': 'CERA MATE', 'quick': false, 'quantity': 8.0, ...totals(320, 160)},
+              {'name': 'SHAMPOO', 'quick': false, 'quantity': 4.0, ...totals(160, 110)},
+            ],
+            'low_margin_products': <dynamic>[],
+            'sales': [
+              {
+                'id': 1,
+                'number': 'V-000048',
+                'sold_at': '2026-10-30T18:20:00-04:00',
+                'client': 'JUAN PÉREZ',
+                ...totals(95, 30),
+              },
+            ],
+            'estimated': false,
+            'result': {'expenses': 900.0, 'net': 1160.0},
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Reportes');
+          await t.tap(find.text('Ganancias'));
+          await t.pumpAndSettle();
+        });
+  });
+
+  Map<String, Object?> balanceReport() => {
+        'period': {
+          'preset': 'mes',
+          'label': 'Este mes',
+          'presets': [
+            {'key': 'hoy', 'label': 'Hoy'},
+            {'key': 'semana', 'label': 'Esta semana'},
+            {'key': 'mes', 'label': 'Este mes'},
+            {'key': 'mes_pasado', 'label': 'Mes pasado'},
+          ],
+        },
+        'source': 'caja',
+        'type': null,
+        'results': {
+          'income': {
+            'lines': [
+              {'key': 'servicios', 'label': 'Servicios', 'total': 5523.69},
+              {'key': 'productos', 'label': 'Productos', 'total': 1846.0},
+            ],
+            'total': 7369.69,
+            'by_source': {'caja': 7369.69, 'tesoreria': 0.0},
+          },
+          'expense': {
+            'lines': [
+              {'key': 'proveedor', 'label': 'Pago a proveedor', 'total': 1725.0},
+              {'key': 'personal', 'label': 'Pago a personal', 'total': 805.0},
+              {'key': 'gasto', 'label': 'Gasto', 'total': 505.0},
+              {'key': 'devolucion_venta', 'label': 'Devolución de venta', 'total': 51.0},
+            ],
+            'total': 3086.0,
+            'by_source': {'caja': 1636.0, 'tesoreria': 1450.0},
+          },
+          'profit': 4283.69,
+          'capital': {'contributions': 10500.0, 'withdrawals': 0.0},
+        },
+        'flow': {
+          'income': 7369.69,
+          'expense': 1636.0,
+          'balance': 5733.69,
+          'categories': [
+            {'key': 'venta', 'label': 'Venta', 'type': 'ingreso', 'total': 7369.69},
+            {'key': 'proveedor', 'label': 'Pago a proveedor', 'type': 'egreso', 'total': 800.0},
+          ],
+          'items': [
+            {
+              'id': 'c1', 'source': 'caja', 'type': 'ingreso', 'category': 'venta', 'category_label': 'Venta',
+              'concept': 'Venta V-000052', 'amount': 74.5, 'at': '2026-10-27T17:05:00-04:00',
+              'place': 'CAJA 1 · LAS AMÉRICAS', 'method': 'Efectivo', 'services': 50.0,
+            },
+          ],
+          'count': 1,
+        },
+        'closings': [
+          {
+            'id': 1, 'number': 'T-0001', 'caja': 'CAJA 1', 'branch': 'LAS AMÉRICAS', 'status': 'abierta',
+            'opened_at': '2026-10-27T17:28:00-04:00', 'opened_by': 'demo', 'closed_at': null, 'closed_by': null,
+            'opening': 0.0, 'cash_income': 15.0, 'cash_expense': 0.0, 'expected': 15.0,
+            'counted': null, 'difference': null, 'other_methods': <dynamic>[],
+          },
+          {
+            'id': 2, 'number': 'T-0002', 'caja': 'CAJA 1', 'branch': 'LAS AMÉRICAS', 'status': 'cerrada',
+            'opened_at': '2026-10-17T08:55:00-04:00', 'opened_by': 'demo', 'closed_at': '2026-10-17T19:55:00-04:00',
+            'closed_by': 'demo', 'opening': 0.0, 'cash_income': 1164.37, 'cash_expense': 251.0, 'expected': 913.37,
+            'counted': 900.37, 'difference': -13.0,
+            'other_methods': [
+              {'label': 'QR', 'amount': 394.0},
+            ],
+          },
+        ],
+      };
+
+  for (final (name, tab) in [('16c_balance_resultados', null), ('16d_balance_cierres', 'Cierres')]) {
+    testWidgets(name.replaceAll('_', ' '), (tester) async {
+      final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+      await shoot(tester, name,
+          session: s,
+          routes: {
+            '/me': _meCompleto,
+            '/my/agenda': _agenda,
+            '/agenda': _agenda,
+            '/reports/balance': balanceReport(),
+          },
+          afterLoad: (t) async {
+            await openSection(t, 'Reportes');
+            await t.ensureVisible(find.text('Balance'));
+            await t.pumpAndSettle();
+            await t.tap(find.text('Balance'));
+            await t.pumpAndSettle();
+            if (tab != null) {
+              await t.tap(find.text(tab));
+              await t.pumpAndSettle();
+            }
+          });
+    });
+  }
+
+
+  testWidgets('16e analisis', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    Map<String, Object?> metric(double scale) => {
+          'week': 1240 * scale,
+          'week_change': 12.5,
+          'month': 8450 * scale,
+          'month_change': -8.2,
+          'daily': [
+            for (final (i, d) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].indexed)
+              {'label': d, 'current': i < 3 ? (300 + i * 120) * scale : 0.0, 'previous': (260 + i * 90) * scale},
+          ],
+          'weeks': [
+            for (final (i, l) in ['14/09', '21/09', '28/09', '05/10', '12/10', '19/10', '26/10', '02/11'].indexed)
+              {'label': l, 'value': (1500 + i * 210) * scale},
+          ],
+          'months': [
+            for (final (i, l) in ['Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov'].indexed)
+              {'label': l, 'value': (5200 + i * 700) * scale},
+          ],
+        };
+
+    await shoot(tester, '16e_analisis',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/reports/analysis': {
+            'series': {
+              for (final k in ['servicios', 'ventas', 'compras']) k: {'amount': metric(1), 'count': metric(.02)},
+            },
+            'top': {
+              'services': [
+                {'name': 'CORTE CLÁSICO', 'amount': 2400.0, 'count': 48.0},
+              ],
+              'products': <dynamic>[],
+              'clients': <dynamic>[],
+            },
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Reportes');
+          await t.ensureVisible(find.text('Análisis'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Análisis'));
+          await t.pumpAndSettle();
+        });
+  });
+
+
   testWidgets('17 barberos', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 

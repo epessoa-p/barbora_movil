@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../theme/barbora_theme.dart';
+import 'analysis_report_screen.dart';
+import 'balance_report_screen.dart';
+import 'profit_report_screen.dart';
 import 'report_detail_screen.dart';
 
 /// La portada de Reportes: una tarjeta por reporte. Al tocar, se abre su vista.
@@ -17,7 +20,9 @@ class ReportsScreen extends StatelessWidget {
     _ReportCard('barberos', 'Barberos', 'Producción y comisiones por barbero', Icons.badge_outlined, Color(0xFFE11D48)),
     _ReportCard('productos', 'Productos', 'Rotación y margen de productos', Icons.inventory_2_outlined, Color(0xFF7C3AED)),
     _ReportCard('clientes', 'Clientes', 'Nuevos, recurrentes y top', Icons.people_outline, Color(0xFFDB2777)),
-    _ReportCard('ganancias', 'Ganancias', 'Ingresos, gastos y neto', Icons.savings_outlined, Color(0xFF16A34A)),
+    _ReportCard('ganancias', 'Ganancias', 'Ganancia por lo vendido y neto', Icons.savings_outlined, Color(0xFF16A34A)),
+    _ReportCard('analisis', 'Análisis', 'Semana y mes contra el anterior', Icons.insights_outlined, Color(0xFF0891B2)),
+    _ReportCard('balance', 'Balance', 'Caja, tesorería y cierres', Icons.account_balance_wallet_outlined, Color(0xFF2563EB)),
   ];
 
   @override
@@ -55,7 +60,14 @@ class _ReportTile extends StatelessWidget {
       child: InkWell(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ReportDetailScreen(type: card.type, title: card.title),
+            // Ganancias y Balance tienen su propia pantalla (filtros y
+            // pestañas); los demás usan el molde genérico.
+            builder: (_) => switch (card.type) {
+              'ganancias' => const ProfitReportScreen(),
+              'balance' => const BalanceReportScreen(),
+              'analisis' => const AnalysisReportScreen(),
+              _ => ReportDetailScreen(type: card.type, title: card.title),
+            },
           ),
         ),
         child: Padding(

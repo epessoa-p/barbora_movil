@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
+import '../core/upper_case.dart';
 import '../models/cash.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
@@ -186,6 +187,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (value != null) onSet(value);
   }
 
+  Future<void> _quickSale(CheckoutController checkout, String symbol) async {
+    final result = await showDialog<_QuickSale>(
+      context: context,
+      builder: (_) => _QuickSaleDialog(symbol: symbol),
+    );
+
+    if (result != null) {
+      checkout.addQuick(result.name, result.price, quantity: result.quantity);
+    }
+  }
+
   void _addProduct(CheckoutController checkout, Product product) {
     final added = checkout.addProduct(product);
 
@@ -317,6 +329,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
           ),
+
+        // Un producto que no está cargado en el inventario: se vende con
+        // nombre y precio a mano para no perder tiempo registrándolo.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: OutlinedButton.icon(
+            onPressed: () => _quickSale(checkout, symbol),
+            icon: const Icon(Icons.bolt_outlined, size: 18),
+            label: const Text('Venta rápida'),
+          ),
+        ),
 
         if (_showProducts && showTabs)
           ..._productList(checkout, symbol)
@@ -584,7 +607,8 @@ class _CartCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '$symbol ${line.unitPrice.toStringAsFixed(2)} c/u',
+                          '$symbol ${line.unitPrice.toStringAsFixed(2)} c/u'
+                          '${line.isQuick ? ' · venta rápida' : ''}',
                           style: const TextStyle(
                             fontSize: 11.5,
                             color: BarboraTheme.textMuted,
@@ -712,6 +736,111 @@ class _AmountDialogState extends State<_AmountDialog> {
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_value),
           child: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
+}
+
+typedef _QuickSale = ({String name, double price, double quantity});
+
+/// Venta rápida: nombre, precio y cantidad de un producto sin ficha.
+class _QuickSaleDialog extends StatefulWidget {
+  const _QuickSaleDialog({required this.symbol});
+
+  final String symbol;
+
+  @override
+  State<_QuickSaleDialog> createState() => _QuickSaleDialogState();
+}
+
+class _QuickSaleDialogState extends State<_QuickSaleDialog> {
+  final _name = TextEditingController();
+  final _price = TextEditingController();
+  final _quantity = TextEditingController(text: '1');
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _price.dispose();
+    _quantity.dispose();
+    super.dispose();
+  }
+
+  double _number(TextEditingController c) =>
+      double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+
+  bool get _valid =>
+      _name.text.trim().isNotEmpty && _number(_price) > 0 && _number(_quantity) > 0;
+
+  void _submit() {
+    if (!_valid) return;
+    Navigator.of(context).pop<_QuickSale>((
+      name: _name.text.trim(),
+      price: _number(_price),
+      quantity: _number(_quantity),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Venta rápida'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Para un producto que no está cargado en el inventario. '
+            'No descuenta stock y no tiene costo conocido.',
+            style: TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _name,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [UpperCaseFormatter()],
+            decoration: const InputDecoration(labelText: 'Producto'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _price,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Precio',
+                    prefixText: '${widget.symbol} ',
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: _quantity,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Cantidad'),
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _submit(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _valid ? _submit : null,
+          child: const Text('Agregar'),
         ),
       ],
     );

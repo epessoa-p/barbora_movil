@@ -206,6 +206,49 @@ void main() {
       expect(item['type'], 'producto');
       expect(item['id'], 20);
     });
+
+    test('la venta rápida viaja con nombre y precio, sin id', () async {
+      final sent = <Map<String, dynamic>>[];
+
+      final client = MockClient((request) async {
+        if (request.method == 'POST') {
+          sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+        }
+
+        return http.Response(
+          jsonEncode({
+            'data': {
+              'id': 1,
+              'number': 'V-1',
+              'status': 'pagada',
+              'sold_at': '2026-09-26T10:00:00-04:00',
+              'subtotal': 30.0,
+              'discount': 0.0,
+              'tip': 0.0,
+              'total': 30.0,
+            },
+          }),
+          201,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final checkout = CheckoutController(api: ApiClient(session: session, client: client))
+        ..addQuick(' gel fijador ', 15, quantity: 2);
+
+      expect(checkout.subtotal, 30);
+      expect(checkout.lines.single.name, 'GEL FIJADOR');
+
+      await checkout.checkout({'efectivo': 30});
+
+      final item = (sent.first['items'] as List).first as Map<String, dynamic>;
+
+      expect(item['type'], 'rapido');
+      expect(item['name'], 'GEL FIJADOR');
+      expect(item['price'], 15);
+      expect(item['quantity'], 2);
+      expect(item.containsKey('id'), isFalse);
+    });
   });
 
   group('Cobrar una cita', () {

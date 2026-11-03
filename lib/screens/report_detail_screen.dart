@@ -115,6 +115,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
           if (report.summary.isNotEmpty) _SummaryGrid(stats: report.summary, symbol: symbol),
 
+          if (report.inventory case final inv?) ...[
+            const SizedBox(height: 18),
+            _InventoryCard(inventory: inv, symbol: symbol),
+          ],
+
           for (final chart in report.charts)
             if (chart.hasData) ...[
               const SizedBox(height: 18),
@@ -225,6 +230,85 @@ class _SummaryGrid extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Valor del stock de hoy: productos, unidades, a costo, a venta y la ganancia
+/// que dejaría venderlo todo.
+class _InventoryCard extends StatelessWidget {
+  const _InventoryCard({required this.inventory, required this.symbol});
+
+  final InventoryValue inventory;
+  final String symbol;
+
+  @override
+  Widget build(BuildContext context) {
+    final inv = inventory;
+    final units = inv.units == inv.units.roundToDouble() ? inv.units.toInt().toString() : inv.units.toStringAsFixed(2);
+
+    Widget tile(IconData icon, String label, String value, {Color? color, bool dark = false}) => Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          decoration: BoxDecoration(
+            color: dark ? const Color(0xFF1F2937) : BarboraTheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: dark ? null : Border.all(color: BarboraTheme.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 15, color: dark ? Colors.white70 : BarboraTheme.textMuted),
+                  const SizedBox(width: 6),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 11, letterSpacing: .4, color: dark ? Colors.white70 : BarboraTheme.textMuted)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 18, color: dark ? Colors.white : color)),
+              ),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 0, 4, 10),
+          child: Text(
+            'INVENTARIO ACTUAL · NO DEPENDE DEL PERIODO',
+            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1, color: BarboraTheme.textMuted),
+          ),
+        ),
+        Row(
+          children: [
+            Expanded(child: tile(Icons.inventory_2_outlined, 'PRODUCTOS', '${inv.products}')),
+            const SizedBox(width: 10),
+            Expanded(child: tile(Icons.layers_outlined, 'UNIDADES', units)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: tile(Icons.receipt_long_outlined, 'VALOR A COSTO', formatReportValue(inv.cost, 'money', symbol))),
+            const SizedBox(width: 10),
+            Expanded(
+              child: tile(Icons.sell_outlined, 'VALOR A VENTA', formatReportValue(inv.sale, 'money', symbol),
+                  color: const Color(0xFF16A34A)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        tile(Icons.trending_up, 'GANANCIA POTENCIAL', formatReportValue(inv.potential, 'money', symbol), dark: true),
       ],
     );
   }

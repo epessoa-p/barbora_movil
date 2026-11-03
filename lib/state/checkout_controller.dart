@@ -143,6 +143,18 @@ class CheckoutController extends ChangeNotifier {
     return true;
   }
 
+  /// Venta rápida: un producto que no está en el inventario (nombre y precio a
+  /// mano). No toca stock ni tiene costo: el reporte de ganancias lo separa.
+  void addQuick(String name, double price, {double quantity = 1}) {
+    _lines.add(CartLine.quick(
+      name: name.trim().toUpperCase(),
+      unitPrice: price,
+      quantity: quantity,
+      personalId: _personalId,
+    ));
+    notifyListeners();
+  }
+
   void addLine(CartLine line) {
     _lines.add(line);
     notifyListeners();

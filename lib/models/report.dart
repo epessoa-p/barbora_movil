@@ -12,6 +12,7 @@ class ReportView {
     this.charts = const [],
     this.tables = const [],
     this.note,
+    this.inventory,
   });
 
   final String key;
@@ -21,6 +22,9 @@ class ReportView {
   final List<ReportChart> charts;
   final List<ReportTable> tables;
   final String? note;
+
+  /// Solo en el de productos.
+  final InventoryValue? inventory;
 
   factory ReportView.fromJson(Map<String, dynamic> json) => ReportView(
         key: json['key'] as String? ?? '',
@@ -36,6 +40,9 @@ class ReportView {
             .map((e) => ReportTable.fromJson(e as Map<String, dynamic>))
             .toList(),
         note: json['note'] as String?,
+        inventory: json['inventory'] is Map<String, dynamic>
+            ? InventoryValue.fromJson(json['inventory'] as Map<String, dynamic>)
+            : null,
       );
 }
 
@@ -165,4 +172,31 @@ String formatReportValue(Object? value, String kind, String symbol) {
     default:
       return '$value';
   }
+}
+
+/// Valor del inventario de hoy (reporte de productos): no depende del periodo.
+class InventoryValue {
+  const InventoryValue({
+    this.products = 0,
+    this.units = 0,
+    this.cost = 0,
+    this.sale = 0,
+    this.potential = 0,
+  });
+
+  final int products;
+  final double units;
+  final double cost;
+  final double sale;
+
+  /// Lo que dejaría vender todo el stock a su precio.
+  final double potential;
+
+  factory InventoryValue.fromJson(Map<String, dynamic> json) => InventoryValue(
+        products: (json['products'] as num?)?.toInt() ?? 0,
+        units: (json['units'] as num?)?.toDouble() ?? 0,
+        cost: (json['cost'] as num?)?.toDouble() ?? 0,
+        sale: (json['sale'] as num?)?.toDouble() ?? 0,
+        potential: (json['potential'] as num?)?.toDouble() ?? 0,
+      );
 }

@@ -646,7 +646,9 @@ void main() {
     expect(find.text('Editar servicio'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextField, 'Precio'), '65');
-    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Guardar cambios'));
+    // La galería de fotos deja el botón más abajo: hay que bajar hasta él.
+    await tester.scrollUntilVisible(find.widgetWithText(FilledButton, 'Guardar cambios'), 200,
+        scrollable: find.descendant(of: find.byType(ListView).last, matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar cambios'));
     await tester.pumpAndSettle();

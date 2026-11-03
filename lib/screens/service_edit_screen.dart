@@ -9,7 +9,7 @@ import '../models/block_options.dart';
 import '../models/service.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
-import '../widgets/photo_picker_field.dart';
+import '../widgets/service_gallery_field.dart';
 
 /// Alta o edición de un servicio: nombre, categoría, precio, duración,
 /// descripción y estado.
@@ -42,8 +42,8 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
   late bool _active = widget.service?.active ?? true;
   late int? _categoryId = widget.service?.categoryId;
 
-  /// La foto elegida (se sube al guardar) o «quitar la actual».
-  final _photo = PhotoChoice();
+  /// Las fotos de cortes: lo que se cambie se manda al guardar.
+  late final _gallery = GalleryDraft(widget.service?.photos ?? const []);
 
   List<Option> _categories = const [];
 
@@ -103,18 +103,15 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
 
       var saved = Service.fromJson(body['data'] as Map<String, dynamic>);
 
-      // La foto va aparte (multipart), una vez que el servicio ya existe.
-      if (_photo.changed) {
-        final photo = await _photo.upload(api, '/services/${saved.id}/photo');
-        saved = Service.fromJson(photo['data'] as Map<String, dynamic>);
-      }
+      // Las fotos van aparte (multipart), una vez que el servicio ya existe.
+      saved = await _gallery.apply(api, saved.id) ?? saved;
 
       if (!mounted) return;
       Navigator.of(context).pop(saved);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        for (final f in ['name', 'price', 'duration_minutes', 'service_category_id', 'photo']) {
+        for (final f in ['name', 'price', 'duration_minutes', 'service_category_id', 'photos']) {
           final msg = e.firstErrorFor(f);
           if (msg != null) _errors[f] = msg;
         }
@@ -140,8 +137,6 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
-          PhotoPickerField(choice: _photo, currentUrl: widget.service?.photoUrl, error: _errors['photo']),
-          const SizedBox(height: 18),
           TextField(
             controller: _name,
             textCapitalization: TextCapitalization.characters,
@@ -215,6 +210,8 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             title: const Text('Activo'),
             subtitle: const Text('Un servicio inactivo no aparece al reservar ni al cobrar.'),
           ),
+          const SizedBox(height: 12),
+          ServiceGalleryField(draft: _gallery, error: _errors['photos']),
 
           if (_error != null) ...[
             const SizedBox(height: 8),

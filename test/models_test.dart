@@ -2,6 +2,8 @@ import 'package:barbora_movil/models/appointment.dart';
 import 'package:barbora_movil/models/commission.dart';
 import 'package:barbora_movil/models/company.dart';
 import 'package:barbora_movil/models/me.dart';
+import 'package:barbora_movil/models/service.dart';
+import 'package:barbora_movil/widgets/service_gallery_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Los `fromJson` frente a respuestas reales de la API.
@@ -10,6 +12,44 @@ import 'package:flutter_test/flutter_test.dart';
 /// no inventadas: si el backend cambia una clave, esto falla aquí y no en el
 /// teléfono de un barbero a media jornada.
 void main() {
+  group('Service con galería', () {
+    final service = Service.fromJson({
+      'id': 3,
+      'name': 'CORTE MODERNO',
+      'duration_minutes': 40,
+      'price': 60.0,
+      'category_id': 1,
+      'category': 'Corte',
+      'active': true,
+      'photo_url': 'https://x/storage/services/1/a.jpg',
+      'photos': [
+        {'id': 7, 'url': 'https://x/storage/services/1/a.jpg', 'caption': '1', 'sort_order': 0},
+        {'id': 8, 'url': 'https://x/storage/services/1/b.jpg', 'caption': null, 'sort_order': 1},
+      ],
+    });
+
+    test('lee las fotos con su comentario; la primera es la portada', () {
+      expect(service.photos.map((p) => p.id), [7, 8]);
+      expect(service.photos.first.caption, '1');
+      expect(service.photos.first.url, service.photoUrl);
+    });
+
+    test('el borrador solo cuenta como cambio si algo cambió', () {
+      final draft = GalleryDraft(service.photos);
+      expect(draft.changed, isFalse);
+
+      draft.items.first.caption = '1';
+      expect(draft.changed, isFalse, reason: 'mismo comentario');
+
+      draft.items.insert(0, draft.items.removeAt(1));
+      expect(draft.changed, isTrue, reason: 'otro orden');
+    });
+
+    test('sin «photos» (API vieja) queda la galería vacía', () {
+      expect(Service.fromJson({'id': 1, 'name': 'X'}).photos, isEmpty);
+    });
+  });
+
   group('Appointment', () {
     final json = {
       'id': 12,

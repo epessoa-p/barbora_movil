@@ -94,6 +94,8 @@ class SaleRow {
     this.client,
     this.personal,
     this.methods = const [],
+    this.services = 0,
+    this.products = 0,
   });
 
   final int id;
@@ -107,6 +109,10 @@ class SaleRow {
   /// Cómo se pagó: «Efectivo», «QR»…
   final List<String> methods;
 
+  /// Líneas de servicio y de producto: para el distintivo de la lista.
+  final int services;
+  final int products;
+
   bool get isCancelled => status == 'anulada';
 
   factory SaleRow.fromJson(Map<String, dynamic> json) => SaleRow(
@@ -118,6 +124,8 @@ class SaleRow {
         client: json['client'] as String?,
         personal: json['personal'] as String?,
         methods: (json['methods'] as List? ?? []).cast<String>(),
+        services: (json['services'] as num?)?.toInt() ?? 0,
+        products: (json['products'] as num?)?.toInt() ?? 0,
       );
 }
 

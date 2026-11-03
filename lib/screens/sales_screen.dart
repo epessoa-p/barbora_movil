@@ -16,7 +16,8 @@ enum SalesPeriod {
   today('Hoy'),
   yesterday('Ayer'),
   week('7 días'),
-  month('Mes');
+  month('Mes'),
+  custom('Rango');
 
   const SalesPeriod(this.label);
 
@@ -34,6 +35,8 @@ enum SalesPeriod {
         ),
       SalesPeriod.week => (today.subtract(const Duration(days: 6)), today),
       SalesPeriod.month => (DateTime(today.year, today.month), today),
+      // El rango lo elige el usuario: ver _SalesScreenState._range.
+      SalesPeriod.custom => (today, today),
     };
   }
 
@@ -59,6 +62,30 @@ class _SalesScreenState extends State<SalesScreen> {
   /// Venta que se está abriendo, para mostrar el indicador en su fila.
   int? _opening;
 
+  /// Fechas elegidas en «Rango».
+  DateTimeRange? _range;
+
+  /// Elige el rango; si se cancela, queda el periodo que había.
+  Future<void> _pickRange() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(today.year - 3),
+      lastDate: today,
+      initialDateRange: _range ?? DateTimeRange(start: today.subtract(const Duration(days: 6)), end: today),
+      helpText: 'Ventas entre',
+      saveText: 'Ver',
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _range = picked;
+      _period = SalesPeriod.custom;
+    });
+    _load();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -73,12 +100,15 @@ class _SalesScreenState extends State<SalesScreen> {
       _error = null;
     });
 
-    final (from, to) = _period.range(DateTime.now());
+    final (from, to) = _period == SalesPeriod.custom && _range != null
+        ? (_range!.start, _range!.end)
+        : _period.range(DateTime.now());
 
     try {
       final body = await context.read<ApiClient>().get(
         '/sales',
-        query: {'from': _date(from), 'to': _date(to)},
+        // Un rango largo puede tener muchas ventas: se pide el máximo.
+        query: {'from': _date(from), 'to': _date(to), if (_period == SalesPeriod.custom) 'limit': '200'},
       );
       if (!mounted) return;
       setState(() {
@@ -135,12 +165,37 @@ class _SalesScreenState extends State<SalesScreen> {
               ],
               selected: {_period},
               onSelectionChanged: (s) {
+                if (s.first == SalesPeriod.custom) {
+                  _pickRange();
+                  return;
+                }
                 setState(() => _period = s.first);
                 _load();
               },
             ),
           ),
         ),
+        // El rango elegido, y tocarlo para cambiarlo.
+        if (_period == SalesPeriod.custom && _range != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: InkWell(
+              onTap: _pickRange,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  const Icon(Icons.date_range, size: 18, color: BarboraTheme.textMuted),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${DateFormat('d MMM y', 'es').format(_range!.start)} — ${DateFormat('d MMM y', 'es').format(_range!.end)}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  const Text('Cambiar', style: TextStyle(color: BarboraTheme.copper, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
         if (!_loading && _error == null)
           _SummaryCard(summary: _summary, symbol: symbol),
         Expanded(child: _body(symbol)),
@@ -184,7 +239,7 @@ class _SalesScreenState extends State<SalesScreen> {
         itemBuilder: (_, i) => _SaleTile(
           sale: _sales[i],
           symbol: symbol,
-          showDate: !_period.singleDay,
+          showDate: !_period.singleDay && !(_period == SalesPeriod.custom && _range?.duration == Duration.zero),
           opening: _opening == _sales[i].id,
           onTap: _opening == null ? () => _open(_sales[i]) : null,
         ),
@@ -318,6 +373,19 @@ class _SaleTile extends StatelessWidget {
                         ],
                       ],
                     ),
+                    // Qué se cobró: servicio, producto o ambos.
+                    if (sale.services > 0 || sale.products > 0) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        children: [
+                          if (sale.services > 0)
+                            const _KindBadge(label: 'Servicio', icon: Icons.content_cut, color: Color(0xFF0D9488)),
+                          if (sale.products > 0)
+                            const _KindBadge(label: 'Producto', icon: Icons.inventory_2_outlined, color: Color(0xFF7C3AED)),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 3),
                     Text(
                       [
@@ -360,6 +428,34 @@ class _SaleTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Distintivo de lo que se cobró en la venta: «Servicio» o «Producto».
+class _KindBadge extends StatelessWidget {
+  const _KindBadge({required this.label, required this.icon, required this.color});
+
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+        ],
       ),
     );
   }

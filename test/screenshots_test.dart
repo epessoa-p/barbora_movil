@@ -1133,7 +1133,7 @@ void main() {
   };
 
   Map<String, Object?> fila(int id, String hora, String cliente, String barbero, double total,
-          {String status = 'pagada', List<String> methods = const ['Efectivo']}) =>
+          {String status = 'pagada', List<String> methods = const ['Efectivo'], int services = 1, int products = 0}) =>
       {
         'id': id,
         'number': 'V-${id.toString().padLeft(4, '0')}',
@@ -1143,15 +1143,17 @@ void main() {
         'client': cliente,
         'personal': barbero,
         'methods': methods,
+        'services': services,
+        'products': products,
       };
 
   final ventas = {
     'summary': {'count': 4, 'total': 285.0, 'tips': 15.0, 'cancelled': 1},
     'data': [
-      fila(41, '17:40', 'CARLOS MENDOZA', 'TANIA MOLINA', 85.0, methods: ['QR']),
+      fila(41, '17:40', 'CARLOS MENDOZA', 'TANIA MOLINA', 85.0, methods: ['QR'], products: 1),
       fila(40, '16:05', 'LUIS VARGAS', 'DIEGO ROJAS', 50.0),
       fila(39, '12:20', 'ANDRÉS ROJAS', 'TANIA MOLINA', 50.0, status: 'anulada'),
-      fila(38, '11:10', 'PEDRO QUIROGA', 'DIEGO ROJAS', 70.0, methods: ['Efectivo', 'Tarjeta']),
+      fila(38, '11:10', 'PEDRO QUIROGA', 'DIEGO ROJAS', 70.0, methods: ['Efectivo', 'Tarjeta'], services: 0, products: 2),
       fila(37, '09:30', 'MARCO SALAZAR', 'TANIA MOLINA', 80.0),
     ],
   };

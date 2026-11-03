@@ -251,6 +251,16 @@ class _ServiceRow extends StatelessWidget {
                       '${service.durationMinutes} min',
                       style: const TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted),
                     ),
+                    // Los cortes de la galería, si hay más que la portada.
+                    if (service.photos.length > 1) ...[
+                      const SizedBox(width: 10),
+                      const Icon(Icons.photo_library_outlined, size: 13, color: BarboraTheme.titanium),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${service.photos.length} fotos',
+                        style: const TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted),
+                      ),
+                    ],
                   ],
                 ),
                 if (service.description != null && service.description!.trim().isNotEmpty) ...[

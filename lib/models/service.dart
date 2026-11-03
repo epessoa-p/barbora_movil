@@ -1,3 +1,18 @@
+/// Una foto de la galería de un servicio (un corte), con su comentario.
+class ServicePhoto {
+  const ServicePhoto({required this.id, required this.url, this.caption});
+
+  final int id;
+  final String url;
+  final String? caption;
+
+  factory ServicePhoto.fromJson(Map<String, dynamic> json) => ServicePhoto(
+        id: (json['id'] as num).toInt(),
+        url: json['url'] as String? ?? '',
+        caption: json['caption'] as String?,
+      );
+}
+
 /// Un servicio del catálogo, tal como llega de `GET /services`.
 class Service {
   const Service({
@@ -10,10 +25,14 @@ class Service {
     this.categoryId,
     this.active = true,
     this.photoUrl,
+    this.photos = const [],
   });
 
-  /// Foto del servicio (sale también en el catálogo público), o null.
+  /// La portada (la primera de la galería; sale en el catálogo), o null.
   final String? photoUrl;
+
+  /// La galería: los cortes, con su comentario. La primera es la portada.
+  final List<ServicePhoto> photos;
 
   final int id;
   final String name;
@@ -34,5 +53,8 @@ class Service {
         categoryId: json['category_id'] as int?,
         active: json['active'] as bool? ?? true,
         photoUrl: json['photo_url'] as String?,
+        photos: (json['photos'] as List? ?? [])
+            .map((e) => ServicePhoto.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }

@@ -988,6 +988,48 @@ void main() {
   });
 
 
+  testWidgets('16f reporte de productos', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '16f_reporte_productos',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/reports/productos': {
+            'key': 'productos',
+            'title': 'Productos',
+            'period': {
+              'preset': 'mes',
+              'label': 'Este mes',
+              'presets': [
+                {'key': 'hoy', 'label': 'Hoy'},
+                {'key': 'semana', 'label': 'Esta semana'},
+                {'key': 'mes', 'label': 'Este mes'},
+                {'key': 'mes_pasado', 'label': 'Mes pasado'},
+              ],
+            },
+            'summary': [
+              {'label': 'Cantidad', 'value': 24, 'kind': 'int'},
+              {'label': 'Ingresos', 'value': 1240.0, 'kind': 'money'},
+              {'label': 'Costo', 'value': 610.0, 'kind': 'money'},
+              {'label': 'Margen', 'value': 630.0, 'kind': 'money'},
+            ],
+            'charts': <dynamic>[],
+            'tables': <dynamic>[],
+            'note': null,
+            'inventory': {'products': 39, 'units': 802.0, 'cost': 42101.0, 'sale': 72876.94, 'potential': 30775.94},
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Reportes');
+          await t.tap(find.text('Productos'));
+          await t.pumpAndSettle();
+        });
+  });
+
+
   testWidgets('17 barberos', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 

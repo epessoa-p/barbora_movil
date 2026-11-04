@@ -94,6 +94,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
         children: [
+          // El inventario es el stock de hoy: va antes del periodo, que no lo
+          // afecta, para que no parezca filtrado por él.
+          if (report.inventory case final inv?) ...[
+            _InventoryCard(inventory: inv, symbol: symbol),
+            const SizedBox(height: 22),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 0, 4, 10),
+              child: Text(
+                'VENDIDO EN EL PERIODO',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1, color: BarboraTheme.textMuted),
+              ),
+            ),
+          ],
+
           _PeriodBar(period: report.period, onPick: _changePreset),
           const SizedBox(height: 14),
 
@@ -114,11 +128,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           ],
 
           if (report.summary.isNotEmpty) _SummaryGrid(stats: report.summary, symbol: symbol),
-
-          if (report.inventory case final inv?) ...[
-            const SizedBox(height: 18),
-            _InventoryCard(inventory: inv, symbol: symbol),
-          ],
 
           for (final chart in report.charts)
             if (chart.hasData) ...[
@@ -285,7 +294,7 @@ class _InventoryCard extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(4, 0, 4, 10),
           child: Text(
-            'INVENTARIO ACTUAL · NO DEPENDE DEL PERIODO',
+            'INVENTARIO ACTUAL · HOY',
             style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1, color: BarboraTheme.textMuted),
           ),
         ),

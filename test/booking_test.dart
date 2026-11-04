@@ -666,10 +666,13 @@ void main() {
     await tester.tap(inDrawer('Reportes'));
     await tester.pumpAndSettle();
 
-    // La portada con las tarjetas.
-    expect(find.text('Ventas'), findsOneWidget);
-    expect(find.text('Barberos'), findsOneWidget);
+    // La portada con las tarjetas: primero Ganancias, Balance, Análisis…
+    expect(find.text('Ganancias'), findsOneWidget);
+    expect(find.text('Balance'), findsOneWidget);
 
+    await tester.scrollUntilVisible(find.text('Ventas'), 200,
+        scrollable: find.descendant(of: find.byType(GridView), matching: find.byType(Scrollable)).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ventas'));
     await tester.pumpAndSettle();
 

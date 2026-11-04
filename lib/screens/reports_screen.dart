@@ -15,14 +15,14 @@ class ReportsScreen extends StatelessWidget {
   const ReportsScreen({super.key});
 
   static const _reports = <_ReportCard>[
+    _ReportCard('ganancias', 'Ganancias', 'Ganancia por lo vendido y neto', Icons.savings_outlined, Color(0xFF16A34A)),
+    _ReportCard('balance', 'Balance', 'Caja, tesorería y cierres', Icons.account_balance_wallet_outlined, Color(0xFF2563EB)),
+    _ReportCard('analisis', 'Análisis', 'Semana y mes contra el anterior', Icons.insights_outlined, Color(0xFF0891B2)),
+    _ReportCard('productos', 'Productos', 'Rotación y margen de productos', Icons.inventory_2_outlined, Color(0xFF7C3AED)),
     _ReportCard('ventas', 'Ventas', 'Cuánto se vendió y cómo se cobró', Icons.receipt_long, Color(0xFF0EA5E9)),
     _ReportCard('servicios', 'Servicios', 'Qué servicios se piden y citas', Icons.content_cut, Color(0xFF0D9488)),
     _ReportCard('barberos', 'Barberos', 'Producción y comisiones por barbero', Icons.badge_outlined, Color(0xFFE11D48)),
-    _ReportCard('productos', 'Productos', 'Rotación y margen de productos', Icons.inventory_2_outlined, Color(0xFF7C3AED)),
     _ReportCard('clientes', 'Clientes', 'Nuevos, recurrentes y top', Icons.people_outline, Color(0xFFDB2777)),
-    _ReportCard('ganancias', 'Ganancias', 'Ganancia por lo vendido y neto', Icons.savings_outlined, Color(0xFF16A34A)),
-    _ReportCard('analisis', 'Análisis', 'Semana y mes contra el anterior', Icons.insights_outlined, Color(0xFF0891B2)),
-    _ReportCard('balance', 'Balance', 'Caja, tesorería y cierres', Icons.account_balance_wallet_outlined, Color(0xFF2563EB)),
   ];
 
   @override

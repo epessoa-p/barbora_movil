@@ -72,7 +72,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _CategorySheet(category: category),
+      builder: (_) => ExpenseCategorySheet(category: category),
     );
     if (saved == true) _load();
   }
@@ -146,18 +146,23 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
   }
 }
 
-class _CategorySheet extends StatefulWidget {
-  const _CategorySheet({this.category});
+/// Alta o edición de una categoría. Devuelve true si se guardó.
+///
+/// Desde Gastos › Servicios se abre con `initialType: 'basicos'` (y el título
+/// «Nuevo servicio»), para crear la luz, el hosting… sin pasar por Finanzas.
+class ExpenseCategorySheet extends StatefulWidget {
+  const ExpenseCategorySheet({super.key, this.category, this.initialType = 'general'});
 
   final ExpenseCategoryItem? category;
+  final String initialType;
 
   @override
-  State<_CategorySheet> createState() => _CategorySheetState();
+  State<ExpenseCategorySheet> createState() => _ExpenseCategorySheetState();
 }
 
-class _CategorySheetState extends State<_CategorySheet> {
+class _ExpenseCategorySheetState extends State<ExpenseCategorySheet> {
   late final _name = TextEditingController(text: widget.category?.name ?? '');
-  late String _type = widget.category?.type ?? 'general';
+  late String _type = widget.category?.type ?? widget.initialType;
   late String _frequency = widget.category?.frequency ?? 'mensual';
   late bool _active = widget.category?.active ?? true;
   bool _busy = false;
@@ -203,7 +208,7 @@ class _CategorySheetState extends State<_CategorySheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.category == null ? 'Nueva categoría' : 'Editar categoría',
+          Text(widget.category != null ? 'Editar categoría' : (widget.initialType == 'basicos' ? 'Nuevo servicio' : 'Nueva categoría'),
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 14),
           TextField(
@@ -211,7 +216,11 @@ class _CategorySheetState extends State<_CategorySheet> {
             autofocus: true,
             textCapitalization: TextCapitalization.characters,
             inputFormatters: const [UpperCaseFormatter()],
-            decoration: InputDecoration(labelText: 'Nombre', errorText: _error),
+            decoration: InputDecoration(
+              labelText: 'Nombre',
+              hintText: _type == 'basicos' ? 'LUZ, AGUA, HOSTING…' : null,
+              errorText: _error,
+            ),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(

@@ -514,7 +514,10 @@ void main() {
     await shoot(tester, '28b_servicios_basicos',
         session: s,
         routes: {
-          '/me': meFinanzas,
+          '/me': <String, Object>{
+            ...meFinanzas,
+            'permissions': [...(meFinanzas['permissions']! as List), 'expense_categories.create'],
+          },
           '/my/agenda': _agenda,
           '/agenda': _agenda,
           '/finance/expenses': {

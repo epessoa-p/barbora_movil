@@ -8,6 +8,7 @@ import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/error_view.dart';
+import 'expense_categories_screen.dart';
 import 'expense_edit_screen.dart';
 import 'settle_commission_sheet.dart';
 
@@ -58,6 +59,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       widget.group == 'personal' &&
       (context.read<AuthController>().me?.hasModule('comisiones') ?? false) &&
       _can('commissions.view');
+
+  /// Crear un servicio básico (mensual o anual) y que aparezca en el control del mes.
+  Future<void> _newService() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const ExpenseCategorySheet(initialType: 'basicos'),
+    );
+    if (saved == true) _load();
+  }
 
   Future<void> _settle(PendingCommission p) async {
     final symbol = context.read<AuthController>().company?.symbol ?? '';
@@ -174,6 +185,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             _load();
                           },
                           onPay: (s) => _new(categoryId: s.id, amount: s.lastAmount),
+                          onAddService: _can('expense_categories.create') ? _newService : null,
                         ),
                         const SizedBox(height: 10),
                       ],
@@ -333,6 +345,7 @@ class _BasicsCard extends StatelessWidget {
     required this.canCreate,
     required this.onMonth,
     required this.onPay,
+    this.onAddService,
   });
 
   final BasicServicesMonth month;
@@ -340,6 +353,9 @@ class _BasicsCard extends StatelessWidget {
   final bool canCreate;
   final ValueChanged<String> onMonth;
   final ValueChanged<BasicServiceStatus> onPay;
+
+  /// Crear un servicio básico (luz, hosting…); null sin permiso.
+  final VoidCallback? onAddService;
 
   static const _green = Color(0xFF16A34A);
   static const _orange = Color(0xFFEA580C);
@@ -382,7 +398,7 @@ class _BasicsCard extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
-                  'No hay servicios básicos. Créalos en Finanzas › Categorías con el tipo «Servicio básico».',
+                  'Todavía no hay servicios básicos: agrega la luz, el agua, el hosting… con «Nuevo servicio».',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12.5, color: BarboraTheme.textMuted),
                 ),
@@ -423,6 +439,17 @@ class _BasicsCard extends StatelessWidget {
                 trailing: !s.paid && canCreate
                     ? const Text('Registrar', style: TextStyle(color: BarboraTheme.copper, fontWeight: FontWeight.w700))
                     : null,
+              ),
+            // Un servicio nuevo (el hosting, el gas…), sin ir a Finanzas › Categorías.
+            if (onAddService != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: onAddService,
+                  style: TextButton.styleFrom(foregroundColor: BarboraTheme.copper),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nuevo servicio'),
+                ),
               ),
           ],
         ),

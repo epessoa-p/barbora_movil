@@ -5,10 +5,11 @@ import '../theme/barbora_theme.dart';
 /// Pantalla propia con la barra oscura de la app. Las secciones que no traen
 /// Scaffold (como Reportes) se abren envueltas en esta.
 class AdminPage extends StatelessWidget {
-  const AdminPage({super.key, required this.title, required this.child});
+  const AdminPage({super.key, required this.title, required this.child, this.floatingActionButton});
 
   final String title;
   final Widget child;
+  final Widget? floatingActionButton;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -18,6 +19,7 @@ class AdminPage extends StatelessWidget {
           title: Text(title),
         ),
         body: child,
+        floatingActionButton: floatingActionButton,
       );
 }
 

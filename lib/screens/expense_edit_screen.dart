@@ -14,10 +14,24 @@ import '../widgets/payment_source_picker.dart';
 /// Registrar un gasto: en qué, a quién (si la categoría lo pide), cuánto y de
 /// dónde sale el dinero. Devuelve el [ExpenseItem] guardado.
 class ExpenseEditScreen extends StatefulWidget {
-  const ExpenseEditScreen({super.key, this.group});
+  const ExpenseEditScreen({super.key, this.group, this.initialCategoryId, this.initialAmount});
 
-  /// Desde una pestaña (proveedor, personal, básicos): solo sus categorías.
+  /// Desde una pestaña (general, proveedor, personal, basicos): solo sus
+  /// categorías. A proveedor o personal no se elige categoría: va la habitual.
   final String? group;
+
+  /// Desde el control del mes: el servicio ya elegido y el último importe.
+  final int? initialCategoryId;
+  final double? initialAmount;
+
+  bool get payeeGroup => group == 'proveedor' || group == 'personal';
+
+  String get title => switch (group) {
+        'proveedor' => 'Pago a proveedor',
+        'personal' => 'Pago a personal',
+        'basicos' => 'Pago de servicio',
+        _ => 'Nuevo gasto',
+      };
 
   @override
   State<ExpenseEditScreen> createState() => _ExpenseEditScreenState();
@@ -25,7 +39,7 @@ class ExpenseEditScreen extends StatefulWidget {
 
 class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
   final _description = TextEditingController();
-  final _amount = TextEditingController();
+  late final _amount = TextEditingController(text: widget.initialAmount?.toStringAsFixed(2) ?? '');
   final _reference = TextEditingController();
   DateTime _date = DateTime.now();
 
@@ -35,7 +49,7 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
   PaymentSourceOptions _sources = const PaymentSourceOptions();
   late PaymentSourceSelection _selection;
 
-  int? _categoryId;
+  late int? _categoryId = widget.initialCategoryId;
   int? _supplierId;
   int? _personalId;
 
@@ -73,8 +87,11 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
         _categories = (body['categories'] as List? ?? [])
             .map((e) => ExpenseCategoryItem.fromJson(e as Map<String, dynamic>))
             .toList();
-        // Con una sola categoría (pagos a proveedores, a personal) ya va elegida.
-        if (_categories.length == 1) _categoryId = _categories.first.id;
+        // A proveedor o personal va la habitual; con una sola, ya va elegida.
+        final fallback = (body['default_category_id'] as num?)?.toInt();
+        if (_categoryId == null || !_categories.any((c) => c.id == _categoryId)) {
+          _categoryId = widget.payeeGroup ? (fallback ?? _categories.firstOrNull?.id) : (_categories.length == 1 ? _categories.first.id : null);
+        }
         _suppliers = PickOption.listOf(body['suppliers']);
         _staff = PickOption.listOf(body['staff']);
         _sources = PaymentSourceOptions.fromJson(body);
@@ -88,7 +105,9 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
     }
   }
 
-  String get _payee => _categories.where((c) => c.id == _categoryId).firstOrNull?.payee ?? 'ninguno';
+  String get _payee => widget.payeeGroup
+      ? widget.group!
+      : (_categories.where((c) => c.id == _categoryId).firstOrNull?.payee ?? 'ninguno');
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -109,6 +128,7 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
     });
 
     final body = {
+      'group': ?widget.group,
       'expense_category_id': _categoryId,
       if (_payee == 'proveedor') 'supplier_id': _supplierId,
       if (_payee == 'personal') 'personal_id': _personalId,
@@ -126,7 +146,7 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        for (final f in ['expense_category_id', 'description', 'amount', 'spent_on', 'source', 'finance_account_id', 'cash_session_id']) {
+        for (final f in ['expense_category_id', 'supplier_id', 'personal_id', 'description', 'amount', 'spent_on', 'source', 'finance_account_id', 'cash_session_id']) {
           _errors[f] = e.firstErrorFor(f);
         }
         _error = e.errors.isEmpty ? e.message : (e.firstErrorFor('error'));
@@ -141,7 +161,7 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
     final symbol = context.watch<AuthController>().company?.symbol ?? '';
 
     return AdminPage(
-      title: 'Nuevo gasto',
+      title: widget.title,
       child: _loading
           ? const Center(child: CircularProgressIndicator(color: BarboraTheme.copper))
           : _loadError != null
@@ -149,37 +169,48 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
                   children: [
-                    DropdownButtonFormField<int>(
-                      initialValue: _categoryId,
-                      isExpanded: true,
-                      decoration: InputDecoration(labelText: 'Categoría', errorText: _errors['expense_category_id']),
-                      items: [for (final c in _categories) DropdownMenuItem(value: c.id, child: Text(c.name))],
-                      onChanged: (v) => setState(() => _categoryId = v),
-                    ),
-                    if (_payee == 'proveedor') ...[
-                      const SizedBox(height: 14),
+                    // A proveedor o personal: primero a quién se le paga.
+                    if (_payee == 'proveedor')
                       DropdownButtonFormField<int?>(
                         initialValue: _supplierId,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Proveedor'),
+                        decoration: InputDecoration(labelText: 'Proveedor', errorText: _errors['supplier_id']),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Sin especificar')),
+                          if (!widget.payeeGroup) const DropdownMenuItem<int?>(value: null, child: Text('Sin especificar')),
                           for (final s in _suppliers) DropdownMenuItem<int?>(value: s.id, child: Text(s.name)),
                         ],
                         onChanged: (v) => setState(() => _supplierId = v),
                       ),
-                    ],
-                    if (_payee == 'personal') ...[
-                      const SizedBox(height: 14),
+                    if (_payee == 'personal')
                       DropdownButtonFormField<int?>(
                         initialValue: _personalId,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Personal'),
+                        decoration: InputDecoration(labelText: 'Personal', errorText: _errors['personal_id']),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Sin especificar')),
+                          if (!widget.payeeGroup) const DropdownMenuItem<int?>(value: null, child: Text('Sin especificar')),
                           for (final p in _staff) DropdownMenuItem<int?>(value: p.id, child: Text(p.name)),
                         ],
                         onChanged: (v) => setState(() => _personalId = v),
+                      ),
+                    // La categoría: a proveedor o personal solo si hay más de una.
+                    if (!widget.payeeGroup || _categories.length > 1) ...[
+                      if (_payee != 'ninguno') const SizedBox(height: 14),
+                      DropdownButtonFormField<int>(
+                        initialValue: _categoryId,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: switch (widget.group) {
+                            'basicos' => 'Servicio',
+                            'proveedor' || 'personal' => 'Concepto',
+                            _ => 'Categoría',
+                          },
+                          errorText: _errors['expense_category_id'],
+                        ),
+                        items: [
+                          for (final c in _categories)
+                            DropdownMenuItem(value: c.id, child: Text(c.isAnnual ? '${c.name} (anual)' : c.name)),
+                        ],
+                        onChanged: (v) => setState(() => _categoryId = v),
                       ),
                     ],
                     const SizedBox(height: 14),
@@ -187,8 +218,12 @@ class _ExpenseEditScreenState extends State<ExpenseEditScreen> {
                       controller: _description,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
-                        labelText: 'Descripción',
-                        hintText: 'Alquiler de noviembre, almuerzo del equipo…',
+                        labelText: widget.group == 'general' || widget.group == null ? 'Descripción' : 'Descripción (opcional)',
+                        hintText: switch (widget.group) {
+                          'basicos' => 'Si la dejas vacía: «LUZ · noviembre 2026»',
+                          'proveedor' || 'personal' => 'Si la dejas vacía: «Pago a …»',
+                          _ => 'Almuerzo del equipo, pasaje a la central…',
+                        },
                         errorText: _errors['description'],
                       ),
                     ),

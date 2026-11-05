@@ -508,6 +508,130 @@ void main() {
         });
   });
 
+  testWidgets('28b servicios basicos del mes', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '28b_servicios_basicos',
+        session: s,
+        routes: {
+          '/me': meFinanzas,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/finance/expenses': {
+            'total': 680.0,
+            'data': [
+              {'id': 3, 'number': 'G-000003', 'description': 'ALQUILER · noviembre 2026', 'category': 'ALQUILER', 'amount': 500.0,
+                'spent_on': '2026-11-02', 'source': 'account', 'source_label': 'BANCO UNIÓN', 'can_cancel': true},
+              {'id': 4, 'number': 'G-000004', 'description': 'LUZ · noviembre 2026', 'category': 'LUZ', 'amount': 180.0,
+                'spent_on': '2026-11-03', 'source': 'cash', 'source_label': 'Caja · T-000014', 'can_cancel': true},
+            ],
+          },
+          '/finance/basics': {
+            'month': '2026-11',
+            'label': 'Noviembre 2026',
+            'previous': '2026-10',
+            'next': null,
+            'paid_count': 3,
+            'pending_count': 2,
+            'total_paid': 680.0,
+            'services': [
+              {'id': 3, 'name': 'ALQUILER', 'frequency': 'mensual', 'status': 'pagado', 'paid': 500.0, 'last_amount': 500.0},
+              {'id': 4, 'name': 'LUZ', 'frequency': 'mensual', 'status': 'pagado', 'paid': 180.0, 'last_amount': 180.0},
+              {'id': 5, 'name': 'AGUA', 'frequency': 'mensual', 'status': 'pendiente', 'paid': 0.0, 'last_amount': 65.0},
+              {'id': 6, 'name': 'INTERNET Y TELÉFONO', 'frequency': 'mensual', 'status': 'pendiente', 'paid': 0.0, 'last_amount': 199.0},
+              {'id': 9, 'name': 'HOSTING', 'frequency': 'anual', 'status': 'pagado', 'paid': 520.0, 'last_amount': 520.0,
+                'next_due_on': '2027-08-05'},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Gastos');
+          await t.tap(find.text('Servicios').last);
+          await t.pumpAndSettle();
+        });
+  });
+
+
+  testWidgets('28c comisiones por pagar en personal', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+    final me = <String, Object>{
+      ...meFinanzas,
+      'permissions': [...(meFinanzas['permissions']! as List), 'commissions.view', 'commissions.create'],
+    };
+
+    await shoot(tester, '28c_comisiones_por_pagar',
+        session: s,
+        routes: {
+          '/me': me,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/finance/expenses': {
+            'total': 320.0,
+            'data': [
+              {'id': 8, 'number': 'G-000008', 'description': 'Liquidación L-000003 · DIEGO ROJAS', 'category': 'COMISIONES',
+                'payee': 'DIEGO ROJAS', 'amount': 320.0, 'spent_on': '2026-11-01', 'source': 'cash', 'source_label': 'Caja · T-000013',
+                'can_cancel': false},
+            ],
+          },
+          '/commissions/pending': {
+            'summary': {'count': 14, 'total': 612.5, 'people': 2},
+            'data': [
+              {'personal_id': 3, 'name': 'TANIA MOLINA', 'count': 9, 'total': 412.5, 'tips': 40.0, 'since': '2026-10-12'},
+              {'personal_id': 5, 'name': 'DIEGO ROJAS', 'count': 5, 'total': 200.0, 'tips': 0.0, 'since': '2026-11-02'},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Gastos');
+          await t.tap(find.text('Personal').last);
+          await t.pumpAndSettle();
+        });
+  });
+
+  testWidgets('17b horario del personal', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+    final me = <String, Object>{
+      ..._meCompleto,
+      'permissions': [...(_meCompleto['permissions']! as List), 'schedules.view', 'schedules.edit'],
+    };
+
+    await shoot(tester, '17b_horario',
+        session: s,
+        routes: {
+          '/me': me,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/personal': {
+            'data': [
+              {'id': 6, 'full_name': 'Lucía Recepción', 'cargo': 'Recepcionista', 'cargo_id': 2, 'bookable': false, 'active': true, 'agenda_color': '#10B981'},
+            ],
+          },
+          '/personal/options': {
+            'cargos': [{'id': 2, 'name': 'Recepcionista'}],
+            'branches': <dynamic>[],
+          },
+          '/personal/6/schedules': {
+            'personal': {'id': 6, 'name': 'Lucía Recepción', 'bookable': false},
+            'branches': [{'id': 1, 'name': 'CENTRAL'}],
+            'data': [
+              for (final d in [1, 2, 3, 4, 5])
+                {'id': d, 'weekday': d, 'weekday_label': '', 'start_time': '08:30', 'end_time': '12:30', 'branch_id': null, 'branch': 'Cualquier sucursal'},
+              for (final d in [1, 2, 3, 4, 5])
+                {'id': 10 + d, 'weekday': d, 'weekday_label': '', 'start_time': '14:30', 'end_time': '19:00', 'branch_id': null, 'branch': 'Cualquier sucursal'},
+              {'id': 20, 'weekday': 6, 'weekday_label': 'Sábado', 'start_time': '09:00', 'end_time': '13:00', 'branch_id': null, 'branch': 'Cualquier sucursal'},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openAdmin(t, 'Personal');
+          await t.tap(find.text('Lucía Recepción'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Horario'));
+          await t.pumpAndSettle();
+        });
+  });
+
+
   testWidgets('29 nueva compra', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 

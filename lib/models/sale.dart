@@ -242,7 +242,8 @@ class CartLine {
   Map<String, dynamic> toRequest() => {
         'type': type,
         if (isQuick) ...{'name': name, 'price': unitPrice} else 'id': id,
-        'quantity': quantity,
+        // Siempre entera: el servidor no acepta decimales.
+        'quantity': quantity.round(),
         'personal_id': ?personalId,
       };
 }

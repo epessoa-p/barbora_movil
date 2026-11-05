@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
@@ -778,7 +779,7 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
     Navigator.of(context).pop<_QuickSale>((
       name: _name.text.trim(),
       price: _number(_price),
-      quantity: _number(_quantity),
+      quantity: _number(_quantity).roundToDouble(),
     ));
   }
 
@@ -823,7 +824,9 @@ class _QuickSaleDialogState extends State<_QuickSaleDialog> {
                 flex: 2,
                 child: TextField(
                   controller: _quantity,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  // Siempre en unidades enteras.
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: 'Cantidad'),
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (_) => _submit(),

@@ -149,6 +149,8 @@ class ExpenseCategoryItem {
     required this.name,
     this.payee = 'ninguno',
     this.recurring = false,
+    this.type = 'general',
+    this.frequency = 'mensual',
     this.active = true,
     this.expensesCount = 0,
   });
@@ -159,6 +161,15 @@ class ExpenseCategoryItem {
 
   /// Servicio básico / recurrente: alquiler, luz, agua… (mensual o anual).
   final bool recurring;
+
+  /// general · basicos (servicio básico) · proveedor · personal.
+  final String type;
+
+  /// Si es servicio básico: mensual o anual.
+  final String frequency;
+
+  bool get isAnnual => recurring && frequency == 'anual';
+
   final bool active;
   final int expensesCount;
 
@@ -167,6 +178,8 @@ class ExpenseCategoryItem {
         name: j['name'] as String? ?? '',
         payee: j['payee'] as String? ?? 'ninguno',
         recurring: j['recurring'] as bool? ?? false,
+        type: j['type'] as String? ?? 'general',
+        frequency: j['frequency'] as String? ?? 'mensual',
         active: j['active'] as bool? ?? true,
         expensesCount: j['expenses_count'] as int? ?? 0,
       );
@@ -399,3 +412,114 @@ String apiDate(DateTime d) =>
 /// Fecha para la pantalla: «03/11/2026».
 String shortDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+/// Un servicio básico en el control del mes (`GET /finance/basics`).
+class BasicServiceStatus {
+  const BasicServiceStatus({
+    required this.id,
+    required this.name,
+    required this.paid,
+    this.annual = false,
+    this.amount = 0,
+    this.lastAmount,
+    this.nextDueOn,
+  });
+
+  final int id;
+  final String name;
+  final bool paid;
+  final bool annual;
+
+  /// Lo pagado en el mes (o, si es anual, en los últimos 12 meses).
+  final double amount;
+
+  /// El último pago, como sugerencia del importe.
+  final double? lastAmount;
+
+  /// Anual: cuándo vuelve a tocar.
+  final DateTime? nextDueOn;
+
+  factory BasicServiceStatus.fromJson(Map<String, dynamic> j) => BasicServiceStatus(
+        id: j['id'] as int,
+        name: j['name'] as String? ?? '',
+        paid: j['status'] == 'pagado',
+        annual: j['frequency'] == 'anual',
+        amount: (j['paid'] as num?)?.toDouble() ?? 0,
+        lastAmount: (j['last_amount'] as num?)?.toDouble(),
+        nextDueOn: j['next_due_on'] is String ? DateTime.parse(j['next_due_on'] as String) : null,
+      );
+}
+
+/// El control de los servicios básicos de un mes.
+class BasicServicesMonth {
+  const BasicServicesMonth({
+    required this.month,
+    required this.label,
+    this.previous,
+    this.next,
+    this.services = const [],
+    this.paidCount = 0,
+    this.pendingCount = 0,
+    this.totalPaid = 0,
+  });
+
+  /// YYYY-MM
+  final String month;
+  final String label;
+  final String? previous;
+
+  /// null si es el mes en curso (no se mira el futuro).
+  final String? next;
+  final List<BasicServiceStatus> services;
+  final int paidCount;
+  final int pendingCount;
+  final double totalPaid;
+
+  factory BasicServicesMonth.fromJson(Map<String, dynamic> j) => BasicServicesMonth(
+        month: j['month'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        previous: j['previous'] as String?,
+        next: j['next'] as String?,
+        services: (j['services'] as List? ?? [])
+            .map((e) => BasicServiceStatus.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        paidCount: (j['paid_count'] as num?)?.toInt() ?? 0,
+        pendingCount: (j['pending_count'] as num?)?.toInt() ?? 0,
+        totalPaid: (j['total_paid'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+/// Lo que se le debe a una persona en comisiones (`GET /commissions/pending`),
+/// de cualquier fecha: no depende del periodo que se mire.
+class PendingCommission {
+  const PendingCommission({
+    required this.personalId,
+    required this.name,
+    required this.count,
+    required this.total,
+    this.tips = 0,
+    required this.since,
+  });
+
+  final int personalId;
+  final String name;
+
+  /// Cuántas comisiones sin liquidar.
+  final int count;
+  final double total;
+
+  /// Propinas del mismo tramo: se pueden sumar al pago.
+  final double tips;
+
+  /// La comisión pendiente más antigua.
+  final DateTime since;
+
+  factory PendingCommission.fromJson(Map<String, dynamic> j) => PendingCommission(
+        personalId: j['personal_id'] as int,
+        name: j['name'] as String? ?? '',
+        count: (j['count'] as num?)?.toInt() ?? 0,
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        tips: (j['tips'] as num?)?.toDouble() ?? 0,
+        since: DateTime.parse(j['since'] as String),
+      );
+}

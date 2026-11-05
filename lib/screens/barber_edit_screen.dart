@@ -9,6 +9,7 @@ import '../models/barber.dart';
 import '../state/auth_controller.dart';
 import '../theme/barbora_theme.dart';
 import '../widgets/error_view.dart';
+import 'schedule_screen.dart';
 
 /// Alta o edición de un barbero. Devuelve el [Barber] guardado, o null si se
 /// canceló. La cuenta de acceso (usuario) NO se toca aquí: eso va por la web.
@@ -141,6 +142,18 @@ class _BarberEditScreenState extends State<BarberEditScreen> {
         backgroundColor: BarboraTheme.inkSoft,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(widget.isEditing ? 'Editar personal' : 'Nuevo personal'),
+        // Su horario (atienda citas o no): una pantalla aparte.
+        actions: [
+          if (widget.isEditing && (context.read<AuthController>().me?.can('schedules.view') ?? false))
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ScheduleScreen(personalId: widget.barber!.id, name: widget.barber!.fullName)),
+              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: const Icon(Icons.schedule, size: 20),
+              label: const Text('Horario'),
+            ),
+        ],
       ),
       body: _loadingCargos
           ? const Center(

@@ -10,8 +10,24 @@ import '../theme/barbora_theme.dart';
 import '../widgets/admin_widgets.dart';
 import '../widgets/error_view.dart';
 
-/// En qué se gasta. «A quién se paga» decide si el gasto pide un proveedor o
-/// alguien del personal.
+/// Los tipos de categoría: deciden en qué pestaña de Gastos sale y qué pide.
+const _types = <String, String>{
+  'general': 'Gasto general',
+  'basicos': 'Servicio básico',
+  'proveedor': 'Pago a proveedor',
+  'personal': 'Pago a personal',
+};
+
+const _groupTitles = <String, String>{
+  'general': 'Gastos generales',
+  'basicos': 'Servicios básicos',
+  'proveedor': 'Pagos a proveedores',
+  'personal': 'Pagos a personal',
+};
+
+/// En qué se gasta, agrupado por tipo: generales (comida, pasajes…),
+/// servicios básicos (luz, agua, hosting… mensual o anual), pagos a
+/// proveedores y a personal.
 class ExpenseCategoriesScreen extends StatefulWidget {
   const ExpenseCategoriesScreen({super.key});
 
@@ -21,7 +37,6 @@ class ExpenseCategoriesScreen extends StatefulWidget {
 
 class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
   List<ExpenseCategoryItem> _categories = const [];
-  Map<String, String> _payees = const {};
   ApiException? _error;
   bool _loading = true;
 
@@ -44,7 +59,6 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
       if (!mounted) return;
       setState(() {
         _categories = (body['data'] as List? ?? []).map((e) => ExpenseCategoryItem.fromJson(e as Map<String, dynamic>)).toList();
-        _payees = (body['payees'] as Map? ?? {}).map((k, v) => MapEntry('$k', '$v'));
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -58,9 +72,45 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _CategorySheet(category: category, payees: _payees),
+      builder: (_) => _CategorySheet(category: category),
     );
     if (saved == true) _load();
+  }
+
+  List<Widget> _section(String group, String title, bool canEdit) {
+    final rows = _categories.where((c) => c.type == group).toList();
+    if (rows.isEmpty) return const [];
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+        child: Text(
+          title.toUpperCase(),
+          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 1, color: BarboraTheme.textMuted),
+        ),
+      ),
+      for (final c in rows)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: AdminTile(
+            icon: switch (c.type) {
+              'proveedor' => Icons.local_shipping_outlined,
+              'personal' => Icons.badge_outlined,
+              'basicos' => Icons.home_work_outlined,
+              _ => Icons.label_outline,
+            },
+            title: c.name,
+            dimmed: !c.active,
+            tags: [
+              if (c.type == 'basicos') AdminTag(c.isAnnual ? 'Anual' : 'Mensual'),
+              if (!c.active) const AdminTag('Inactiva'),
+            ],
+            subtitle: '${c.expensesCount} gastos',
+            onTap: canEdit ? () => _edit(c) : null,
+          ),
+        ),
+      const SizedBox(height: 6),
+    ];
   }
 
   @override
@@ -78,26 +128,7 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 90),
                     children: [
-                      for (final c in _categories)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: AdminTile(
-                            icon: switch (c.payee) {
-                              'proveedor' => Icons.local_shipping_outlined,
-                              'personal' => Icons.badge_outlined,
-                              _ => Icons.label_outline,
-                            },
-                            title: c.name,
-                            dimmed: !c.active,
-                            tags: [if (!c.active) const AdminTag('Inactiva')],
-                            subtitle: [
-                              _payees[c.payee] ?? c.payee,
-                              if (c.recurring) 'Servicio básico',
-                              '${c.expensesCount} gastos',
-                            ].join(' · '),
-                            onTap: canEdit ? () => _edit(c) : null,
-                          ),
-                        ),
+                      for (final g in _groupTitles.entries) ..._section(g.key, g.value, canEdit),
                     ],
                   ),
                 ),
@@ -116,10 +147,9 @@ class _ExpenseCategoriesScreenState extends State<ExpenseCategoriesScreen> {
 }
 
 class _CategorySheet extends StatefulWidget {
-  const _CategorySheet({this.category, required this.payees});
+  const _CategorySheet({this.category});
 
   final ExpenseCategoryItem? category;
-  final Map<String, String> payees;
 
   @override
   State<_CategorySheet> createState() => _CategorySheetState();
@@ -127,8 +157,8 @@ class _CategorySheet extends StatefulWidget {
 
 class _CategorySheetState extends State<_CategorySheet> {
   late final _name = TextEditingController(text: widget.category?.name ?? '');
-  late String _payee = widget.category?.payee ?? 'ninguno';
-  late bool _recurring = widget.category?.recurring ?? false;
+  late String _type = widget.category?.type ?? 'general';
+  late String _frequency = widget.category?.frequency ?? 'mensual';
   late bool _active = widget.category?.active ?? true;
   bool _busy = false;
   String? _error;
@@ -150,8 +180,8 @@ class _CategorySheetState extends State<_CategorySheet> {
       final api = context.read<ApiClient>();
       final body = {
         'name': upperName(_name.text),
-        'payee': _payee,
-        'recurring': _recurring ? 1 : 0,
+        'type': _type,
+        if (_type == 'basicos') 'frequency': _frequency,
         'active': _active ? 1 : 0,
       };
       widget.category == null
@@ -185,22 +215,30 @@ class _CategorySheetState extends State<_CategorySheet> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            initialValue: _payee,
-            decoration: const InputDecoration(labelText: 'A quién se paga'),
-            items: [
-              for (final p in (widget.payees.isEmpty ? const {'ninguno': 'Nadie en concreto'} : widget.payees).entries)
-                DropdownMenuItem(value: p.key, child: Text(p.value)),
-            ],
-            onChanged: (v) => setState(() => _payee = v ?? _payee),
+            initialValue: _type,
+            decoration: const InputDecoration(labelText: 'Tipo'),
+            items: [for (final t in _types.entries) DropdownMenuItem(value: t.key, child: Text(t.value))],
+            onChanged: (v) => setState(() => _type = v ?? _type),
           ),
-          SwitchListTile(
-            value: _recurring,
-            onChanged: (v) => setState(() => _recurring = v),
-            activeThumbColor: BarboraTheme.copper,
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Servicio básico'),
-            subtitle: const Text('Alquiler, luz, agua… lo que se paga cada mes o cada año.'),
-          ),
+          // Un servicio básico se paga cada mes (luz, agua…) o cada año (hosting…).
+          if (_type == 'basicos') ...[
+            const SizedBox(height: 12),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'mensual', label: Text('Mensual'), icon: Icon(Icons.calendar_month, size: 18)),
+                ButtonSegment(value: 'anual', label: Text('Anual'), icon: Icon(Icons.event_repeat, size: 18)),
+              ],
+              selected: {_frequency},
+              onSelectionChanged: (s) => setState(() => _frequency = s.first),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _frequency == 'anual'
+                  ? 'Queda pagado por un año desde el último pago (ej.: el hosting).'
+                  : 'Queda pagado si hubo un pago en el mes (luz, agua, internet…).',
+              style: const TextStyle(fontSize: 12, color: BarboraTheme.textMuted),
+            ),
+          ],
           if (widget.category != null)
             SwitchListTile(
               value: _active,

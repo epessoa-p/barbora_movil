@@ -61,19 +61,20 @@ class _HubScreenState extends State<HubScreen> {
   }
 }
 
-/// Gastos (sección propia del menú): todos (por defecto), a proveedores, a
-/// personal y servicios básicos (alquiler, luz, agua… lo mensual o anual).
+/// Gastos (sección propia del menú), cada tipo en su pestaña sin repetirse:
+/// generales (por defecto: comida, pasajes…), a proveedores, a personal y
+/// servicios básicos (alquiler, luz, agua, hosting… lo mensual o anual).
 class ExpensesHubScreen extends StatelessWidget {
   const ExpensesHubScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return HubScreen(tabs: [
-      HubTab('Gastos', Icons.receipt_long_outlined, Icons.receipt_long, () => const ExpensesScreen()),
+      HubTab('Gastos', Icons.receipt_long_outlined, Icons.receipt_long, () => const ExpensesScreen(group: 'general')),
       HubTab('Proveedores', Icons.local_shipping_outlined, Icons.local_shipping,
           () => const ExpensesScreen(group: 'proveedor')),
       HubTab('Personal', Icons.badge_outlined, Icons.badge, () => const ExpensesScreen(group: 'personal')),
-      HubTab('Básicos', Icons.home_work_outlined, Icons.home_work, () => const ExpensesScreen(group: 'basicos')),
+      HubTab('Servicios', Icons.home_work_outlined, Icons.home_work, () => const ExpensesScreen(group: 'basicos')),
     ]);
   }
 }

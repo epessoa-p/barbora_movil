@@ -173,70 +173,26 @@ class _ServiceGalleryFieldState extends State<ServiceGalleryField> {
   }
 
   Future<void> _edit(GalleryItem item) async {
-    final caption = TextEditingController(text: item.caption);
     final index = _items.indexOf(item);
 
-    final action = await showModalBottomSheet<String>(
+    // La hoja maneja su propio controlador del comentario y lo libera ella
+    // al desmontarse: liberarlo aquí, mientras la hoja todavía se está
+    // cerrando (animación), rompía la app («_dependents.isEmpty»).
+    final result = await showModalBottomSheet<({String action, String caption})>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image(image: item.image, height: 220, fit: BoxFit.cover),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: caption,
-              maxLength: 120,
-              decoration: const InputDecoration(labelText: 'Comentario', hintText: 'Ej.: 1, Corte XXTT'),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                if (index > 0)
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.pop(ctx, 'cover'),
-                    icon: const Icon(Icons.star_outline, size: 18),
-                    label: const Text('Hacer portada'),
-                  ),
-                if (index > 0)
-                  IconButton.outlined(
-                    tooltip: 'Mover antes',
-                    onPressed: () => Navigator.pop(ctx, 'left'),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                if (index < _items.length - 1)
-                  IconButton.outlined(
-                    tooltip: 'Mover después',
-                    onPressed: () => Navigator.pop(ctx, 'right'),
-                    icon: const Icon(Icons.arrow_forward),
-                  ),
-                TextButton.icon(
-                  onPressed: () => Navigator.pop(ctx, 'remove'),
-                  style: TextButton.styleFrom(foregroundColor: BarboraTheme.copperDark),
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('Quitar'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            FilledButton(onPressed: () => Navigator.pop(ctx, 'ok'), child: const Text('Listo')),
-          ],
-        ),
+      builder: (_) => _PhotoSheet(
+        item: item,
+        canMoveBack: index > 0,
+        canMoveForward: index < _items.length - 1,
       ),
     );
 
     if (!mounted) return;
-    setState(() => item.caption = caption.text);
-    caption.dispose();
+    setState(() {});
+    if (result == null) return;
 
-    switch (action) {
+    switch (result.action) {
       case 'cover':
         _move(item, 0);
       case 'left':
@@ -362,6 +318,95 @@ class _Thumb extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// La foto en grande con su comentario, «Hacer portada», mover y quitar.
+/// Devuelve la acción elegida y el comentario (null si se cerró sin «Listo»).
+class _PhotoSheet extends StatefulWidget {
+  const _PhotoSheet({required this.item, required this.canMoveBack, required this.canMoveForward});
+
+  final GalleryItem item;
+  final bool canMoveBack;
+  final bool canMoveForward;
+
+  @override
+  State<_PhotoSheet> createState() => _PhotoSheetState();
+}
+
+class _PhotoSheetState extends State<_PhotoSheet> {
+  late final _caption = TextEditingController(text: widget.item.caption);
+
+  @override
+  void dispose() {
+    _caption.dispose();
+    super.dispose();
+  }
+
+  void _done(String action) => Navigator.pop(context, (action: action, caption: _caption.text));
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image(
+              image: widget.item.image,
+              height: 220,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(height: 220, color: BarboraTheme.canvas),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _caption,
+            maxLength: 120,
+            textInputAction: TextInputAction.done,
+            // Se va guardando: si se cierra tocando afuera, no se pierde.
+            onChanged: (v) => widget.item.caption = v,
+            onSubmitted: (_) => _done('ok'),
+            decoration: const InputDecoration(labelText: 'Comentario', hintText: 'Ej.: 1, Corte XXTT'),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (widget.canMoveBack)
+                OutlinedButton.icon(
+                  onPressed: () => _done('cover'),
+                  icon: const Icon(Icons.star_outline, size: 18),
+                  label: const Text('Hacer portada'),
+                ),
+              if (widget.canMoveBack)
+                IconButton.outlined(
+                  tooltip: 'Mover antes',
+                  onPressed: () => _done('left'),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+              if (widget.canMoveForward)
+                IconButton.outlined(
+                  tooltip: 'Mover después',
+                  onPressed: () => _done('right'),
+                  icon: const Icon(Icons.arrow_forward),
+                ),
+              TextButton.icon(
+                onPressed: () => _done('remove'),
+                style: TextButton.styleFrom(foregroundColor: BarboraTheme.copperDark),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Quitar'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FilledButton(onPressed: () => _done('ok'), child: const Text('Listo')),
+        ],
       ),
     );
   }

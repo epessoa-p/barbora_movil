@@ -635,6 +635,42 @@ void main() {
   });
 
 
+  testWidgets('33 manual de usuario', (tester) async {
+    final s = _FakeSession()..seed(token: 't', companyId: 1);
+
+    await shoot(tester, '33_manual',
+        session: s,
+        routes: {
+          '/me': _meCompleto,
+          '/my/agenda': _agenda,
+          '/agenda': _agenda,
+          '/manual': {
+            'data': [
+              {
+                'key': 'caja',
+                'title': 'Caja',
+                'intro': 'El cajón del mostrador: abrir turno, registrar movimientos y cerrar con el arqueo.',
+                'where': 'Caja; botón de estado en la barra superior',
+                'topics': [
+                  {
+                    'title': 'Abrir el turno',
+                    'steps': ['Entra a Caja y elige la caja.', 'Escribe el fondo inicial y toca «Abrir turno».'],
+                    'note': 'Cada caja tiene su propio turno.',
+                  },
+                ],
+              },
+              {'key': 'gastos', 'title': 'Gastos', 'intro': 'Todo lo que se paga.', 'where': 'Gastos', 'topics': <dynamic>[]},
+            ],
+          },
+        },
+        afterLoad: (t) async {
+          await openSection(t, 'Manual de usuario');
+          await t.enterText(find.byType(TextField), 'turno');
+          await t.pumpAndSettle();
+        });
+  });
+
+
   testWidgets('29 nueva compra', (tester) async {
     final s = _FakeSession()..seed(token: 't', companyId: 1);
 

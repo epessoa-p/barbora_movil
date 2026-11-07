@@ -19,6 +19,7 @@ import 'clients_screen.dart';
 import 'finance_hub_screen.dart';
 import 'home_screen.dart';
 import 'inventory_screen.dart';
+import 'manual_screen.dart';
 import 'commissions_screen.dart';
 import 'new_appointment_screen.dart';
 import 'profile_screen.dart';
@@ -492,6 +493,16 @@ class _AppDrawer extends StatelessWidget {
                     selected: s == current,
                     onTap: () => onSection(s),
                   ),
+                // Al final de la lista: abajo fija le quitaría lugar a las secciones.
+                _DrawerItem(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Manual de usuario',
+                  onTap: () {
+                    Navigator.of(context)
+                      ..pop() // cierra el menú
+                      ..push(MaterialPageRoute(builder: (_) => const ManualScreen()));
+                  },
+                ),
               ],
             ),
           ),

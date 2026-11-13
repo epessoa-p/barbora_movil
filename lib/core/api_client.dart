@@ -160,19 +160,28 @@ class ApiClient {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
         body = decoded is Map<String, dynamic> ? decoded : {'data': decoded};
       } on FormatException {
-        // Respuesta que no es JSON: casi siempre una página de error de PHP.
-        // Se dice cuál fue el estado en vez de un «error inesperado» a secas.
+        // Respuesta que no es JSON: casi siempre una página de error del
+        // servidor web o de PHP. 502/503/504 es una caída momentánea del
+        // servidor (la petición no llegó a la app, no se guardó nada): se dice
+        // así para que reintenten. Otro estado se muestra tal cual.
         throw ApiException(
           kind: ApiErrorKind.unknown,
           statusCode: response.statusCode,
-          message: 'El servidor respondió algo que no se entiende '
-              '(HTTP ${response.statusCode}).',
+          message: _serverDown(response.statusCode)
+              ? _serverDownMessage
+              : 'El servidor respondió algo que no se entiende '
+                  '(HTTP ${response.statusCode}).',
         );
       }
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return body;
+    }
+
+    // El mismo aviso si la caída llega como JSON sin mensaje propio.
+    if (_serverDown(response.statusCode) && body['message'] == null) {
+      throw ApiException(kind: ApiErrorKind.unknown, statusCode: response.statusCode, message: _serverDownMessage);
     }
 
     final error = ApiException.fromResponse(response.statusCode, body);
@@ -183,6 +192,12 @@ class ApiClient {
 
     throw error;
   }
+
+  static bool _serverDown(int status) => status == 502 || status == 503 || status == 504;
+
+  static const _serverDownMessage =
+      'El servidor no está disponible en este momento. Intenta de nuevo en unos segundos. '
+      'Si estabas guardando algo, no se guardó.';
 
   void close() => _client.close();
 }

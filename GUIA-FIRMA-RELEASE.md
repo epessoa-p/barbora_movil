@@ -139,7 +139,7 @@ relativa a la raíz). Los APK actuales usan la firma **v2/v3 de Android**, que
 es `apksigner`, del SDK de Android (`build-tools`):
 ```
 cd d:\repository\barbora\barbora_movil
-"C:\Users\Eric\AppData\Local\Android\Sdk\build-tools\37.0.0\apksigner.bat" verify --print-certs build\app\outputs\flutter-apk\app-release.apk
+& "C:\Users\Eric\AppData\Local\Android\Sdk\build-tools\37.0.0\apksigner.bat" verify --print-certs build\app\outputs\flutter-apk\app-release.apk
 ```
 Debe mostrar `V2 Signer: certificate DN: CN=<tu nombre>, O=<tu organización>…` (los
 datos que pusiste al crear el keystore), no "Android Debug". Si el archivo "no
